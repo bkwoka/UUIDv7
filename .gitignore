@@ -1,0 +1,50 @@
+# PlatformIO
+.pio
+.pioenvs
+.piolibdeps
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Local project files
+tasks/
+
+# Compiled object files
+*.o
+*.obj
+*.so
+*.a
+*.lib
+*.la
+*.lo
+
+# Compiled dynamic libraries
+*.dll
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.elf
+*.bin
+*.hex
+test_runner
+test_runner.exe
+
+# IDE files
+.idea/
+.clion/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Arduino IDE leftovers
+__pycache__/
+*.pyc
+*.pyo
