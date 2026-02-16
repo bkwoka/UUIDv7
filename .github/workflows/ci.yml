@@ -26,8 +26,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade platformio
 
-      - name: Run Native Tests (Linux)
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: Run Native Tests with Coverage
         run: platformio test -e test
+
+      - name: Generate Coverage Report
+        run: |
+          lcov --directory .pio/build/test --capture --output-file coverage.info
+          lcov --remove coverage.info '*/.pio/*' '*/test/*' '/usr/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: coverage.info
 
       - name: Build for ESP32
         run: |
