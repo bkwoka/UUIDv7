@@ -1,6 +1,6 @@
 #pragma once
 
-#define UUID7_LIB_VERSION "1.0.1"
+#define UUID7_LIB_VERSION "1.0.2"
 
 #include <stdint.h>
 #include <stddef.h>
