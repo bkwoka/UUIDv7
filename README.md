@@ -1,6 +1,6 @@
 # UUIDv7 for Embedded Systems
 
-[![GitHub release](https://img.shields.io/github/v/release/bkwoka/UUIDv7)](https://github.com/bkwoka/UUIDv7/releases)
+[![Release](https://img.shields.io/github/v/tag/bkwoka/UUIDv7?label=release&color=blue)](https://github.com/bkwoka/UUIDv7/releases)
 [![Build Status](https://github.com/bkwoka/UUIDv7/actions/workflows/ci.yml/badge.svg)](https://github.com/bkwoka/UUIDv7/actions)
 [![Coverage Status](https://coveralls.io/repos/github/bkwoka/UUIDv7/badge.svg?branch=main)](https://coveralls.io/github/bkwoka/UUIDv7?branch=main)
 [![Arduino Library Registry](https://img.shields.io/badge/Arduino_Library-UUIDv7-teal.svg)](https://www.arduino.cc/reference/en/libraries/uuidv7/)
