@@ -509,6 +509,32 @@ void test_parse_formats() {
     TEST_ASSERT_FALSE(UUID7::parseFromString(broken, out1));
 }
 
+void test_runtime_config() {
+    UUID7 g;
+    
+    // 1. Test setTimeProvider
+    mock_time_val = 0x0123456789ABULL;
+    g.setTimeProvider(mock_now_ms);
+    TEST_ASSERT_TRUE(g.generate());
+    
+    uint64_t ts = 0;
+    for(int i=0; i<6; i++) ts = (ts << 8) | g.data()[i];
+    TEST_ASSERT_TRUE(ts == 0x0123456789ABULL);
+
+    // 2. Test setRandomSource
+    mock_time_val++; // Force different millisecond to use new RNG
+    mock_rng_val = 0xA0;
+    g.setRandomSource(deterministic_rng);
+    TEST_ASSERT_TRUE(g.generate());
+    
+    // Bytes 9-15 are pure random from our deterministic_rng
+    // deterministic_rng fills bits 0..15 with mock_rng_val++
+    // In generate(): rng(temp_rand, 16, _rng_ctx) is called.
+    // So temp_rand[9] should be 0xA0 + 9 = 0xA9
+    TEST_ASSERT_EQUAL_UINT8(0xA9, g.data()[9]);
+    TEST_ASSERT_EQUAL_UINT8(0xAF, g.data()[15]);
+}
+
 // --- TEST RUNNER ---
 
 void run_tests() {
@@ -542,6 +568,7 @@ void run_tests() {
     RUN_TEST(test_regression_threshold);
     RUN_TEST(test_from_bytes_and_formatting);
     RUN_TEST(test_parse_formats);
+    RUN_TEST(test_runtime_config);
     
     UNITY_END();
 }

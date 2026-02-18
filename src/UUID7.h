@@ -63,6 +63,27 @@ public:
     void setVersion(UUIDVersion v);
 
     /**
+     * @brief Configure a custom time provider at runtime.
+     * Useful if the clock (RTC/NTP) is initialized after the UUID object.
+     * @param now Pointer to millisecond time function.
+     * @param ctx User context (optional).
+     */
+    void setTimeProvider(now_ms_fn now, void* ctx = nullptr) {
+        _now = now;
+        _now_ctx = ctx;
+    }
+
+    /**
+     * @brief Configure a custom RNG source at runtime.
+     * @param rng Pointer to random fill function.
+     * @param ctx User context (optional).
+     */
+    void setRandomSource(fill_random_fn rng, void* ctx = nullptr) {
+        _rng = rng;
+        _rng_ctx = ctx;
+    }
+
+    /**
      * @brief Get current configured UUID version.
      * @return Current version.
      */

@@ -59,6 +59,37 @@ void setup() {
 void loop() {}
 ```
 
+## Real-World Usage (Time Source)
+
+**Important:** UUIDv7 relies on UTC time. By default, microcontrollers start counting from 0 (1970-01-01) on every boot.
+If you use the default configuration in production across multiple devices, you will generate UUIDs that sort incorrectly (all from 1970) and you risk collisions if the random entropy is low.
+
+**Solution:** Inject a time provider (NTP, RTC, or GPS).
+
+```cpp
+// Example: Using a global offset from NTP
+uint64_t app_start_time = 1698408000000ULL; // Set this via NTP at boot
+
+uint64_t my_time_provider(void* ctx) {
+    // Return: Known Epoch + Time since boot
+    return app_start_time + millis();
+}
+
+void setup() {
+    // ... connect to WiFi, get NTP time ...
+    uuid.setTimeProvider(my_time_provider);
+}
+```
+
+### When to use UUID v4 (Random)?
+
+If your device does not have a reliable clock (no RTC, no Internet access), do not use UUIDv7. Use UUIDv4 instead. UUIDv4 is purely random and does not require a clock.
+
+```cpp
+uuid.setVersion(UUID_VERSION_4); // Enable random mode
+uuid.generate();
+```
+
 ## Easy Mode vs Pro Mode
 
 This library provides two classes tailored for different needs:
