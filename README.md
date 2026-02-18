@@ -1,41 +1,87 @@
-# UUIDv7 for Embedded Systems
+# UUID v7 & v4 for Embedded Systems
 
 [![Release](https://img.shields.io/github/v/tag/bkwoka/UUIDv7?label=release&color=blue)](https://github.com/bkwoka/UUIDv7/releases)
 [![Build Status](https://github.com/bkwoka/UUIDv7/actions/workflows/ci.yml/badge.svg)](https://github.com/bkwoka/UUIDv7/actions)
-[![Coverage Status](https://coveralls.io/repos/github/bkwoka/UUIDv7/badge.svg?branch=main)](https://coveralls.io/github/bkwoka/UUIDv7?branch=main)
 [![Arduino Library Registry](https://img.shields.io/badge/Arduino_Library-UUIDv7-teal.svg)](https://www.arduino.cc/reference/en/libraries/uuidv7/)
 [![PlatformIO Registry](https://img.shields.io/badge/PlatformIO-UUIDv7-orange)](https://registry.platformio.org/libraries/bkwoka/UUIDv7)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An ultra-lightweight, zero-allocation **UUID Version 7 (RFC 9562)** generator optimized for embedded systems (AVR, ESP8266, ESP32, RP2040) and C++11 environments.
+An ultra-lightweight, zero-allocation UUID generator optimized for embedded systems (AVR, ESP8266, ESP32, RP2040) and C++11 environments.
 
-## Features
+## Supported UUID Versions
 
-- **RFC 9562 Compliant**: Generates strictly valid Version 7, Variant 2 UUIDs.
-- **Time-Ordered**: UUIDs are sortable by creation time (k-sortable).
-- **Zero-Allocation**: No `malloc`, `new`, or `std::string`. Uses stack/static memory only.
-- **Fail-Fast Design**: Immediate error reporting on clock failure or RNG exhaustion.
-- **Monotonicity**: Handles sub-millisecond generation by incrementing the sequence counter, preventing collisions.
-- **Persistence Hooks**: Support for saving/restoring timestamp state (EEPROM/NVS) to prevent regression after reboots.
-- **Tiny Footprint**: Optimized for 8-bit microcontrollers.
+This library implements two specific versions of the UUID standard to cover all embedded use cases:
+
+1.  **UUID Version 7 (RFC 9562)** – Time-ordered, k-sortable. **(Default)**
+2.  **UUID Version 4 (RFC 4122)** – Fully random, no clock required.
+
+## ⚡ Which version should I choose?
+
+Embedded devices often lack a Real-Time Clock (RTC). Using the wrong version can lead to collisions or incorrect sorting.
+
+| Feature | **UUID v7** | **UUID v4** |
+| :--- | :--- | :--- |
+| **Primary Component** | Timestamp (48-bit) | Randomness (122-bit) |
+| **Sortable by Time** | ✅ Yes | ❌ No |
+| **Database Indexing** | 🚀 Excellent (Clustered Index) | ⚠️ Poor (Fragmentation) |
+| **Requires RTC/NTP** | 🔴 **YES (Critical)** | 🟢 **NO** |
+| **Offline Devices** | ❌ Avoid (Resets to 1970) | ✅ **Recommended** |
+
+### Guidelines
+*   **Use UUIDv7 if:** You have a reliable Time Source (RTC module, NTP sync, GPS) and need to sort data by creation time.
+*   **Use UUIDv4 if:** Your device works offline, has no battery backup for time, or frequently reboots without time sync.
+
+---
 
 ## Installation
 
 ### PlatformIO
-
-Add to your `platformio.ini`:
-
 ```ini
 lib_deps =
     bkwoka/UUIDv7
 ```
 
 ### Arduino IDE
+1. Open **Library Manager**.
+2. Search for **UUIDv7**.
+3. Click **Install**.
 
-1. Search for **UUIDv7** in the Library Manager.
-2. Click **Install**.
+---
 
 ## Quick Start
+
+### Option A: UUID v7 (Time-Based)
+*Best for IoT nodes with NTP/RTC.*
+
+```cpp
+#include <UUID7.h>
+
+UUID7 uuid;
+
+// 1. Define a time provider (e.g., NTP or RTC)
+uint64_t my_time_provider(void* ctx) {
+    // Return Unix Epoch in Milliseconds
+    // Example: return rtc.getUnixTime() * 1000 + rtc.getMillis();
+    return 1698408000000ULL + millis(); // Mock for example
+}
+
+void setup() {
+    Serial.begin(115200);
+
+    // 2. Inject the provider (CRITICAL for v7)
+    uuid.setTimeProvider(my_time_provider);
+
+    if (uuid.generate()) {
+        Serial.println(uuid);
+        // Output: 018b7... (Time-ordered)
+    }
+}
+
+void loop() {}
+```
+
+### Option B: UUID v4 (Random)
+*Best for simple devices without a clock.*
 
 ```cpp
 #include <UUID7.h>
@@ -45,157 +91,127 @@ UUID7 uuid;
 void setup() {
     Serial.begin(115200);
 
-    // Always call generate() before accessing data!
+    // 1. Switch to Version 4 (Random Mode)
+    uuid.setVersion(UUID_VERSION_4);
+
     if (uuid.generate()) {
-        // Print directly (implements Printable interface)
-        Serial.print("Generated: ");
         Serial.println(uuid);
-        // Output: 018d960e-2b77-7f8d-9c34-56789abcdef0
-    } else {
-        Serial.println("Error: RNG or Clock failure!");
+        // Output: 9b2075a5-483d-4920-a2bc-39d2d6452301
     }
 }
 
 void loop() {}
 ```
 
-## Real-World Usage (Time Source)
+---
 
-**Important:** UUIDv7 relies on UTC time. By default, microcontrollers start counting from 0 (1970-01-01) on every boot.
-If you use the default configuration in production across multiple devices, you will generate UUIDs that sort incorrectly (all from 1970) and you risk collisions if the random entropy is low.
+## Features
 
-**Solution:** Inject a time provider (NTP, RTC, or GPS).
+- **RFC Compliant**: Strict adherence to RFC 9562 (v7) and RFC 4122 (v4).
+- **Zero Allocation**: No `malloc`, `new`, or `std::string`. Safe for minimal stack.
+- **Fail-Fast**: Reports errors immediately (e.g., if RNG fails).
+- **Monotonicity (v7)**: Handles sub-millisecond generation by incrementing the sequence counter.
+- **Persistence Hooks**: Save/Restore timestamp state to EEPROM to prevent regression.
+- **Tiny Footprint**: Optimized for 8-bit microcontrollers.
 
+---
+
+## Configuration & Security
+
+### 1. Security & Entropy (RNG)
+The library automatically selects the best available entropy source:
+*   **ESP32 / ESP8266**: Uses hardware TRNG (`esp_random`, `os_get_random`).
+*   **RP2040**: Uses hardware ROSC (Ring Oscillator).
+*   **AVR (Uno/Nano)**: Uses ADC noise. **Warning:** Not cryptographically secure by default.
+
+**For AVR Production:**
+Connect a noise source to a floating pin or inject a custom RNG:
 ```cpp
-// Example: Using a global offset from NTP
-uint64_t app_start_time = 1698408000000ULL; // Set this via NTP at boot
-
-uint64_t my_time_provider(void* ctx) {
-    // Return: Known Epoch + Time since boot
-    return app_start_time + millis();
+// Use a specific analog pin for entropy
+#define UUID7_ENTROPY_ANALOG_PIN A3
+#include <UUID7.h>
+```
+Or inject a custom CSPRNG function:
+```cpp
+void my_secure_rng(uint8_t* dest, size_t len, void* ctx) {
+    // Read from ATECC608 secure element
 }
-
-void setup() {
-    // ... connect to WiFi, get NTP time ...
-    uuid.setTimeProvider(my_time_provider);
-}
+uuid.setRandomProvider(my_secure_rng);
 ```
 
-### When to use UUID v4 (Random)?
-
-If your device does not have a reliable clock (no RTC, no Internet access), do not use UUIDv7. Use UUIDv4 instead. UUIDv4 is purely random and does not require a clock.
-
+### 2. Clock Regression (v7)
+If the clock moves backwards (e.g., NTP adjustment), UUIDv7 protects monotonicity. If the regression is huge (device reset to 1970), it handles it safely.
+Custom threshold:
 ```cpp
-uuid.setVersion(UUID_VERSION_4); // Enable random mode
-uuid.generate();
+#define UUID7_REGRESSION_THRESHOLD_MS 10000 // 10 seconds
+#include <UUID7.h>
 ```
+
+### 3. Persistence (Safety Jump)
+To prevent generating duplicate UUIDs after a reboot (if the clock isn't perfectly synced), save the state to non-volatile memory:
+```cpp
+uuid.setStorage(load_fn, save_fn, nullptr);
+uuid.load(); // Applies "Safety Jump" on boot
+```
+
+---
 
 ## Easy Mode vs Pro Mode
 
-This library provides two classes tailored for different needs:
+### `UUID7` (Pro Mode - Default)
+*   **RAM:** ~20 bytes
+*   **Behavior:** Zero-allocation, returns `bool` on success/fail.
+*   **Use case:** High-performance logging, tiny AVR devices.
 
-### 1. `UUID7` (Pro Mode - Default)
-
-- **Best for:** Production, Memory-constrained devices (AVR), High-performance logs.
-- **RAM Cost:** ~20 bytes per instance (Zero-allocation).
-- **Behavior:** Manual buffer management, Fail-fast generation (returns false on error).
-
-### 2. `EasyUUID7` (Easy Mode - Wrapper)
-
-- **Best for:** Beginners, Prototyping, ESP32/8266, Heavy use of `String`.
-- **RAM Cost:** ~60 bytes per instance (Adds internal 37-byte buffer).
-- **Behavior:** Returns `String`, `toCharArray()`, Auto-retry on generation.
-
-**Usage:**
+### `EasyUUID7` (Wrapper)
+*   **RAM:** ~60 bytes (Internal buffer)
+*   **Behavior:** Returns `String`, auto-retries on collision.
+*   **Use case:** Prototyping, ESP32 web servers.
 
 ```cpp
 #include "EasyUUID7.h"
 EasyUUID7 uuid;
-String s = uuid.toString(); // Works!
+String id = uuid.toString();
 ```
 
-## Security & Entropy (Critical for AVR)
+---
 
-### ESP32 / ESP8266
+## Performance
 
-Uses hardware TRNG (True Random Number Generator). No configuration needed.
+| Platform | Flash Cost | RAM Cost | Time per UUID |
+| :--- | :--- | :--- | :--- |
+| **AVR (Uno)** | ~1.5 KB | ~80 B | ~60 µs |
+| **ESP32** | ~1.0 KB | ~60 B | ~5 µs |
+| **RP2040** | ~1.2 KB | ~60 B | ~8 µs |
 
-### RP2040 (Raspberry Pi Pico)
-
-Uses internal Hardware ROSC (Ring Oscillator) to generate high-quality entropy. No configuration needed.
-
-### AVR (Arduino Uno/Nano)
-
-AVR lacks hardware RNG. By default, this library uses jitter and ADC noise.
-**Warning: Without a custom RNG source, AVR entropy is based on ADC noise and is not cryptographically secure.**
-**Recommendation:** Leave pin `A0` floating or connect a noise source.
-To use a different pin (e.g., A3):
-
-```cpp
-// In platformio.ini or before include
-#define UUID7_ENTROPY_ANALOG_PIN A3
-#include <UUID7.h>
-```
-
-**Production Security:**
-For high-security applications on AVR, inject a custom CSPRNG source:
-
-```cpp
-void my_secure_rng(uint8_t* dest, size_t len, void* ctx) {
-    // Read from ATECC608 or similar secure element
-}
-UUID7 uuid(my_secure_rng);
-```
-
-## Clock Regression & Security
-
-UUIDv7 depends on a monotonic clock. If the clock resets significantly (e.g., after battery failure), the library protects against collisions by switching to Version 4 (random) mode.
-The default threshold is 10 seconds, but it can be customized:
-
-```cpp
-#define UUID7_REGRESSION_THRESHOLD_MS 1000 // Switch to v4 after 1s regression
-#include <UUID7.h>
-```
+---
 
 ## Native C++ Support
 
-Outside of Arduino, the library supports standard `std::ostream`:
+Works in standard C++11 environments (Linux, macOS, Windows) for testing or CLI tools.
 
 ```cpp
 #include <iostream>
 #include <UUID7.h>
 
 UUID7 uuid;
-if (uuid.generate()) {
-    std::cout << "Generated: " << uuid << std::endl;
+
+int main() {
+    if (uuid.generate()) {
+        std::cout << uuid << std::endl;
+    }
 }
 ```
 
-## Persistence (Safety Jump)
-
-UUIDv7 relies on time. To prevent generating duplicate UUIDs after a device reboot (if the clock resets), use the Storage API:
-
-```cpp
-// Load last timestamp from EEPROM on boot
-uuid.setStorage(load_fn, save_fn, nullptr);
-uuid.load(); // Performs "Safety Jump" ahead of last saved time
-```
-
-## Performance
-
-| Platform | Flash Cost | RAM Cost | Time per UUID |
-| -------- | ---------- | -------- | ------------- |
-| AVR      | ~1.5 KB    | ~80 B    | ~60 µs        |
-| ESP32    | ~1.0 KB    | ~60 B    | ~5 µs         |
-| RP2040   | ~1.2 KB    | ~60 B    | ~8 µs         |
-
 ## API Reference
 
-- `bool generate()`: Generates a new UUID. Returns `false` on failure.
-- `const uint8_t* data()`: Access raw 16 bytes.
-- `void fromBytes(const uint8_t* bytes)`: Import 16 raw bytes into the object.
-- `bool toString(char* out, size_t buflen, bool uppercase = false, bool dashes = true)`: Converts to string. Support for `UPPERCASE` and `raw hex` (no dashes).
-- `static bool parseFromString(const char* str, uint8_t* out)`: Validates and parses UUID string.
+*   `bool generate()`: Generates a new UUID.
+*   `void setVersion(UUIDVersion v)`: Set `UUID_VERSION_7` or `UUID_VERSION_4`.
+*   `void setTimeProvider(now_ms_fn now, void* ctx)`: **Required for v7.**
+*   `void setRandomProvider(fill_random_fn rng, void* ctx)`: Inject custom RNG.
+*   `bool toString(char* out, ...)`: Convert to string.
+*   `static bool parseFromString(...)`: Parse string to binary.
+*   `const uint8_t* data()`: Access raw bytes.
 
 ## License
 
