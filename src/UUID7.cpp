@@ -19,8 +19,19 @@
 #elif defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
     #include <util/atomic.h>
 #elif defined(ARDUINO_ARCH_RP2040)
-    // Support for Earle Philhower's Core (pico-sdk)
+    // Support for RP2040 multi-core environments using hardware spinlocks.
     #include <hardware/structs/rosc.h>
+    #if defined(PICO_SDK_VERSION_MAJOR)
+        #include <hardware/sync.h>
+        static spin_lock_t* _uuid_rp2040_spinlock = nullptr;
+        __attribute__((constructor)) static void _uuid_init_spinlock() {
+            // Attempt to claim a hardware spinlock for thread-safe access.
+            int lock_num = spin_lock_claim_unused(false); 
+            if (lock_num >= 0) {
+                _uuid_rp2040_spinlock = spin_lock_init(lock_num);
+            }
+        }
+    #endif
 #elif defined(ARDUINO_ARCH_STM32)
     // STM32 HAL is integrated via the Arduino selection.
 #elif defined(PLATFORMIO_NATIVE)
@@ -39,6 +50,14 @@ public:
         #elif defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
             _sreg = SREG;
             cli();
+        #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
+            if (_uuid_rp2040_spinlock) {
+                _saved_irq = spin_lock_blocking(_uuid_rp2040_spinlock);
+            } else {
+                noInterrupts(); // Global interrupt disable as fallback
+            }
+        #elif defined(UUID7_USE_FREERTOS_CRITICAL)
+            taskENTER_CRITICAL();
         #elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
             noInterrupts();
         #elif defined(PLATFORMIO_NATIVE)
@@ -51,6 +70,14 @@ public:
             portEXIT_CRITICAL_SAFE(&_uuid_spinlock);
         #elif defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
             SREG = _sreg;
+        #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
+            if (_uuid_rp2040_spinlock) {
+                spin_unlock(_uuid_rp2040_spinlock, _saved_irq);
+            } else {
+                interrupts();
+            }
+        #elif defined(UUID7_USE_FREERTOS_CRITICAL)
+            taskEXIT_CRITICAL();
         #elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
             interrupts();
         #elif defined(PLATFORMIO_NATIVE)
@@ -65,6 +92,8 @@ public:
 private:
     #if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
         uint8_t _sreg;
+    #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
+        uint32_t _saved_irq;
     #endif
 };
 
@@ -289,28 +318,30 @@ uint64_t UUID7::default_now_ms(void* ctx) noexcept {
 #endif
 }
 
-bool UUID7::_nextRandom() noexcept {
+bool UUID7::_incrementRandom() noexcept {
     // Increment 74-bit random field (bytes 15 down to 6).
     // Respects version (v7) and variant (RFC) bit masking.
     for (int i = 15; i >= 9; i--) {
-        if (++_b[i] != 0) return false;
+        if (++_b[i] != 0) return true;
     }
     
     uint8_t b8 = _b[8] & 0x3F;
     b8++;
     _b[8] = (_b[8] & 0xC0) | (b8 & 0x3F);
-    if ((b8 & 0x40) == 0) return false;
+    if ((b8 & 0x40) == 0) return true;
 
-    if (++_b[7] != 0) return false;
+    if (++_b[7] != 0) return true;
 
     uint8_t b6 = _b[6] & 0x0F;
     b6++;
     _b[6] = (_b[6] & 0xF0) | (b6 & 0x0F);
     
-    if ((b6 & 0x10) == 0) return false;
+    if ((b6 & 0x10) == 0) return true;
 
-    return true; 
+    return false;
 }
+
+
 
 bool UUID7::generate() {
     fill_random_fn rng = _rng ? _rng : &UUID7::default_fill_random;
@@ -345,12 +376,22 @@ bool UUID7::generate() {
 
         {
             UUID7Guard lock; // Ensure thread-safe access to monotonicity state
+            
+            // Mix additional entropy seed into the random part if configured.
+            // This is done inside the spinlock to ensure consistent state.
+            if (_entropy_mixer != 0) {
+                for (int i = 0; i < 8; i++) {
+                    temp_rand[8 + i] ^= (uint8_t)(_entropy_mixer >> (i * 8));
+                }
+            }
+
             uint64_t now_ms = now_func(_now_ctx);
             if (now_ms == 0) return false;
 
 #ifdef UUID7_OPTIMIZE_SIZE
             uint8_t now_48[6];
             uint64_t tmp = now_ms;
+            tmp &= 0x0000FFFFFFFFFFFFULL; // Mask to 48-bit per RFC 9562
             now_48[5] = tmp & 0xFF; tmp >>= 8;
             now_48[4] = tmp & 0xFF; tmp >>= 8;
             now_48[3] = tmp & 0xFF; tmp >>= 8;
@@ -370,10 +411,11 @@ bool UUID7::generate() {
             }
 
             if (major_regression) {
-                _version = UUID_VERSION_4;
+                // If a major clock regression is detected, fall back to UUIDv4 behavior
+                // to avoid collisions, but keep the instance configuration as v7.
+                temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // v4 bits
+                temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // variant bits
                 memcpy(_b, temp_rand, 16);
-                _b[6] = (_b[6] & 0x0F) | 0x40; 
-                _b[8] = (_b[8] & 0x3F) | 0x80; 
                 return true;
             }
 
@@ -391,7 +433,8 @@ bool UUID7::generate() {
                         memcpy(_b, temp_rand, 16);
                         success = true;
                     } else {
-                        if (_nextRandom()) {
+                        // Increment internal counter for same-millisecond monotonicity.
+                        if (!_incrementRandom()) {
                             overflow_occurred = true; 
                             overflow_state = true; 
                         } else {
@@ -405,10 +448,10 @@ bool UUID7::generate() {
             }
 #else
             if (now_ms + UUID7_REGRESSION_THRESHOLD_MS < _last_ts_ms) {
-                _version = UUID_VERSION_4;
+                // Handle major clock regression with non-monotonic v4 fallback.
+                temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // v4 bits
+                temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // variant bits
                 memcpy(_b, temp_rand, 16);
-                _b[6] = (_b[6] & 0x0F) | 0x40; 
-                _b[8] = (_b[8] & 0x3F) | 0x80; 
                 return true;
             }
 
@@ -427,7 +470,8 @@ bool UUID7::generate() {
                         memcpy(_b, temp_rand, 16);
                         success = true;
                     } else {
-                        if (_nextRandom()) {
+                        // Attempt to increment the sub-millisecond counter.
+                        if (!_incrementRandom()) {
                             overflow_occurred = true;
                             overflow_state = true;
                         } else {
@@ -479,6 +523,7 @@ bool UUID7::generate() {
         return false;
     }
 }
+
 
 bool UUID7::toString(char* out, size_t buflen, bool uppercase, bool dashes) const noexcept {
     size_t required = dashes ? 37 : 33;

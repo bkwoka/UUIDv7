@@ -19,12 +19,19 @@ generate	KEYWORD2
 toString	KEYWORD2
 data	KEYWORD2
 parseFromString	KEYWORD2
+parse	KEYWORD2
 setStorage	KEYWORD2
 load	KEYWORD2
 setVersion	KEYWORD2
 setOverflowPolicy	KEYWORD2
+setTimeProvider	KEYWORD2
+setRandomSource	KEYWORD2
+mixEntropy	KEYWORD2
+getVersion	KEYWORD2
+getVariant	KEYWORD2
+isV7	KEYWORD2
+isV4	KEYWORD2
 printTo	KEYWORD2
-generateString	KEYWORD2
 toCharArray	KEYWORD2
 fromBytes	KEYWORD2
 

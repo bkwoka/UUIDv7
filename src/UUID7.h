@@ -1,6 +1,6 @@
 #pragma once
 
-#define UUID7_LIB_VERSION "1.0.4"
+#define UUID7_LIB_VERSION "1.1.0"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -24,6 +24,14 @@ enum UUIDOverflowPolicy {
 };
 
 #include <string.h>
+
+#if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated)
+    #define UUID7_DEPRECATED(msg) [[deprecated(msg)]]
+#elif defined(__GNUC__)
+    #define UUID7_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#else
+    #define UUID7_DEPRECATED(msg)
+#endif
 
 // Auto-enable optimization for AVR architecture to save Flash/Cycles
 #if (defined(ARDUINO_ARCH_AVR) || defined(__AVR__)) && !defined(UUID7_NO_OPTIMIZE)
@@ -73,21 +81,59 @@ public:
         _now_ctx = ctx;
     }
 
-    /**
-     * @brief Configure a custom RNG source at runtime.
-     * @param rng Pointer to random fill function.
-     * @param ctx User context (optional).
-     */
     void setRandomSource(fill_random_fn rng, void* ctx = nullptr) {
         _rng = rng;
         _rng_ctx = ctx;
     }
 
     /**
-     * @brief Get current configured UUID version.
-     * @return Current version.
+     * @brief [Deprecated] Configure a custom RNG source. Use setRandomSource instead.
      */
-    UUIDVersion getVersion() const { return _version; }
+    UUID7_DEPRECATED("Use setRandomSource() instead")
+    inline void setRandomProvider(fill_random_fn rng, void* ctx = nullptr) {
+        setRandomSource(rng, ctx);
+    }
+
+    /**
+     * @brief Mix additional entropy into the UUID generation (e.g., MAC address, hardware ID).
+     * This helps ensure uniqueness across different devices even if timestamps collide.
+     * @param seed 64-bit entropy seed.
+     */
+    void mixEntropy(uint64_t seed) noexcept { 
+        _entropy_mixer = seed; 
+    }
+
+    // --- GETTERS ---
+    
+    /**
+     * @brief Get current configured UUID version.
+     * @return Current version (e.g., UUID_VERSION_7).
+     */
+    UUIDVersion getVersion() const noexcept { return _version; }
+
+    /**
+     * @brief Get the variant of the generated UUID.
+     * @return Variant bits shifted to right (should be 2 for RFC 4122).
+     */
+    uint8_t getVariant() const noexcept { return (_b[8] >> 6) & 0x03; }
+
+    /** @brief Check if the current UUID is Version 7. */
+    bool isV7() const noexcept { return _version == UUID_VERSION_7; }
+
+    /** @brief Check if the current UUID is Version 4. */
+    bool isV4() const noexcept { return _version == UUID_VERSION_4; }
+
+
+    // --- INSTANCE PARSER ---
+
+    /**
+     * @brief Parse a 36-character UUID string directly into this object.
+     * @param str36 Source string.
+     * @return true if string is valid and parsed, false otherwise.
+     */
+    bool parse(const char* str36) noexcept {
+        return parseFromString(str36, _b);
+    }
 
     /**
      * @brief Configure behavior when sub-millisecond counter overflows.
@@ -186,6 +232,15 @@ public:
     /** @brief Lexicographical comparison for sorting (K-Sortable property). */
     bool operator< (const UUID7& other) const { return memcmp(_b, other._b, 16) < 0; }
 
+    /** @brief Lexicographical comparison (Greater than). */
+    bool operator> (const UUID7& other) const { return other < *this; }
+    
+    /** @brief Lexicographical comparison (Less than or equal). */
+    bool operator<=(const UUID7& other) const { return !(other < *this); }
+    
+    /** @brief Lexicographical comparison (Greater than or equal). */
+    bool operator>=(const UUID7& other) const { return !(*this < other); }
+
 #if !defined(ARDUINO)
     /**
      * @brief OStream operator for non-Arduino environments (std::cout support).
@@ -221,6 +276,12 @@ private:
     uint32_t _save_interval_ms;
     uint64_t _last_saved_ts_ms;
 
-    // Helper to increment random part (74 bits). Returns true if overflow occurred (fail).
-    bool _nextRandom() noexcept;
+    uint64_t _entropy_mixer = 0;
+
+    /**
+     * @brief Internal helper to increment the random part (74 bits) for monotonicity.
+     * @return true if increment succeeded, false if overflow occurred.
+     */
+    bool _incrementRandom() noexcept;
 };
+

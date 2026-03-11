@@ -1,23 +1,36 @@
 {
   "name": "UUIDv7",
-  "version": "1.0.4",
-  "description": "Ultra-light UUID v7 (RFC 9562) generator for embedded systems",
+  "version": "1.1.0",
+  "description": "Ultra-light UUID v7 (RFC 9562) and v4 (RFC 4122) generator for embedded systems",
   "keywords": [
     "uuid",
     "uuidv7",
+    "uuid v7",
+    "uuidv4",
+    "uuid v4",
     "rfc9562",
     "embedded",
     "esp32",
     "esp8266",
     "avr",
-    "rp2040"
+    "rp2040",
+    "stm32"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/bkwoka/UUIDv7"
   },
-  "authors": [{ "name": "bkwoka", "maintainer": true }],
+  "authors": [
+    {
+      "name": "bkwoka",
+      "maintainer": true
+    }
+  ],
   "license": "MIT",
-  "frameworks": ["arduino"],
-  "platforms": ["*"]
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "*"
+  ]
 }

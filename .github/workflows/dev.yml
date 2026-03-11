@@ -1,15 +1,14 @@
-name: CI
+name: Dev CI (Release Simulator)
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    branches: [ dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ dev ]
 
 jobs:
   build:
-    name: Build & Test
+    name: Build, Test & Simulate Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,17 +82,16 @@ jobs:
         run: |
           platformio ci --lib="." --board=bluepill_f103c8 examples/1_Hello_UUID/1_Hello_UUID.ino
 
-      - name: Package Release ZIP
-        if: startsWith(github.ref, 'refs/tags/')
+      # --- SYMULACJA WYDANIA (Brak warunku 'if: startsWith(...)') ---
+      - name: Simulate Release ZIP Packaging
         run: |
-          zip -r UUIDv7-${{ github.ref_name }}.zip \
+          zip -r UUIDv7-dev-snapshot.zip \
             src/ examples/ keywords.txt \
             library.properties library.json \
             README.md LICENSE SECURITY.md CHANGELOG.md
 
-      - name: Upload Release Artifact
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Simulated Release Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: UUIDv7-${{ github.ref_name }}
-          path: UUIDv7-${{ github.ref_name }}.zip
+          name: UUIDv7-dev-snapshot
+          path: UUIDv7-dev-snapshot.zip

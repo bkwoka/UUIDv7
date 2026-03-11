@@ -361,19 +361,45 @@ void test_timestamp_wraparound_fallback() {
     g.generate();
     TEST_ASSERT_EQUAL_UINT8(7, (g.data()[6] >> 4) & 0x0F);
 
-    // Major regression: 10000 -> 0 (diff 10000 > 10000)
-    // Wait, it needs to be GREATER than 10000. So 10000 -> 10001? No regression.
-    // 10000 -> 0. diff is 10000. My code says "now_ms + 10000 < last_ts".
-    // 0 + 10000 < 10000 is FALSE.
-    // So 0 + 10000 < 10001 is TRUE.
-    
+    // Move clock forward to establish a reference point
     mock_time_val = 20000;
-    g.generate(); // last_ts becomes 20000
-    
-    mock_time_val = 5000; // 5000 + 10000 < 20000 is TRUE
     g.generate();
-    TEST_ASSERT_EQUAL_UINT8(4, (g.data()[6] >> 4) & 0x0F);
+    
+    // Simulate major regression exceeding the default threshold (10s)
+    mock_time_val = 5000; 
+    g.generate();
+    TEST_ASSERT_EQUAL_UINT8(4, (g.data()[6] >> 4) & 0x0F); // Should fallback to v4
+    
+    // Recovery: Verify return to v7 when clock catches up
+    mock_time_val = 20001;
+    g.generate();
+    TEST_ASSERT_EQUAL_UINT8(7, (g.data()[6] >> 4) & 0x0F); 
 }
+
+/**
+ * @brief Verifies that external entropy injection correctly modifies the random part
+ * of the UUID while preserving the timestamp.
+ */
+void test_entropy_mix() {
+    mock_rng_val = 0;
+    mock_time_val = 1000;
+    UUID7 g1(deterministic_rng, nullptr, mock_now_ms, nullptr);
+    g1.generate();
+    
+    mock_rng_val = 0;
+    mock_time_val = 1000;
+    UUID7 g2(deterministic_rng, nullptr, mock_now_ms, nullptr);
+    g2.mixEntropy(0x1122334455667788ULL);
+    g2.generate();
+    
+    // UUIDs should differ due to mixed entropy
+    TEST_ASSERT_FALSE(g1 == g2);
+    
+    // However, the 48-bit timestamp must remain identical
+    TEST_ASSERT_EQUAL_MEMORY(g1.data(), g2.data(), 6);
+}
+
+
 
 void test_parse_uppercase_hex() {
     UUID7 g;
@@ -535,6 +561,47 @@ void test_runtime_config() {
     TEST_ASSERT_EQUAL_UINT8(0xAF, g.data()[15]);
 }
 
+/**
+ * @brief Verifies that getters (isV7, isV4, Version, Variant) correctly reflect 
+ * the state of the UUID object.
+ */
+void test_getters() {
+    UUID7 g;
+    g.generate();
+    TEST_ASSERT_TRUE(g.isV7());
+    TEST_ASSERT_FALSE(g.isV4());
+    TEST_ASSERT_EQUAL_UINT8(7, (uint8_t)g.getVersion());
+    TEST_ASSERT_EQUAL_UINT8(2, g.getVariant());
+    
+    g.setVersion(UUID_VERSION_4);
+    g.generate();
+    TEST_ASSERT_TRUE(g.isV4());
+    TEST_ASSERT_FALSE(g.isV7());
+    TEST_ASSERT_EQUAL_UINT8(4, (uint8_t)g.getVersion());
+    TEST_ASSERT_EQUAL_UINT8(2, g.getVariant());
+}
+
+/**
+ * @brief Verifies the instance-level parse method and relational operators.
+ */
+void test_parse_instance() {
+    UUID7 g1;
+    g1.generate();
+    char buf[37];
+    g1.toString(buf, sizeof(buf));
+    
+    UUID7 g2;
+    // Test instance parsing
+    TEST_ASSERT_TRUE(g2.parse(buf));
+    
+    // Verify equality and relational operators
+    TEST_ASSERT_TRUE(g1 == g2);
+    TEST_ASSERT_TRUE(g1 >= g2);
+    TEST_ASSERT_TRUE(g1 <= g2);
+    TEST_ASSERT_FALSE(g1 > g2);
+    TEST_ASSERT_FALSE(g1 < g2);
+}
+
 // --- TEST RUNNER ---
 
 void run_tests() {
@@ -569,9 +636,13 @@ void run_tests() {
     RUN_TEST(test_from_bytes_and_formatting);
     RUN_TEST(test_parse_formats);
     RUN_TEST(test_runtime_config);
-    
+    RUN_TEST(test_entropy_mix);
+    RUN_TEST(test_getters);
+    RUN_TEST(test_parse_instance);
+
     UNITY_END();
 }
+
 
 // --- TEST EXECUTION ENTRY POINTS ---
 
