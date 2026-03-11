@@ -52,7 +52,7 @@ public:
             cli();
         #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
             if (_uuid_rp2040_spinlock) {
-                spin_lock_blocking(_uuid_rp2040_spinlock);
+                _saved_irq = spin_lock_blocking(_uuid_rp2040_spinlock);
             } else {
                 noInterrupts(); // Global interrupt disable as fallback
             }
@@ -72,7 +72,7 @@ public:
             SREG = _sreg;
         #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
             if (_uuid_rp2040_spinlock) {
-                spin_unlock(_uuid_rp2040_spinlock);
+                spin_unlock(_uuid_rp2040_spinlock, _saved_irq);
             } else {
                 interrupts();
             }
@@ -92,6 +92,8 @@ public:
 private:
     #if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
         uint8_t _sreg;
+    #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
+        uint32_t _saved_irq;
     #endif
 };
 
