@@ -16,42 +16,54 @@
 #endif
 #include "UUID7.h"
 
-/*
- * EasyUUID7 - High-Level Wrapper for UUIDv7
- * 
- * FEATURES:
- * - Automatic String conversion (Arduino String class).
- * - Internal buffer caching (toCharArray() returns stable pointer).
- * - Auto-retry on generation failure (spin-lock).
- * 
- * COST:
- * - Increases RAM footprint by ~37 bytes per instance due to internal caching.
- * - String operations may impact heap fragmentation if used frequently in tight loops.
+/**
+ * @class EasyUUID7
+ * @brief High-level wrapper for UUIDv7 with automatic string caching and retry logic.
  */
 class EasyUUID7 final : public UUID7 {
 private:
-    char _cacheBuffer[37]; // Internal cache for persistence and char* access
+    char _cacheBuffer[37]; // String representation cache
+    uint16_t _max_retries; // Maximum generation attempts before failure
 
 public:
-    EasyUUID7() : UUID7() {
+    explicit EasyUUID7(uint16_t max_retries = 100) : UUID7(), _max_retries(max_retries) {
         memset(_cacheBuffer, 0, sizeof(_cacheBuffer));
     }
 
     /**
      * @brief Generates a new UUID. 
-     * BLOCKING CALL: Will retry until successful (handles clock/RNG collisions).
+     * BLOCKING CALL: Will retry until successful or max_retries is reached.
      * Automatically updates the internal string cache.
+     * @return true if successful, false if max_retries exceeded (e.g., hardware failure).
      */
     bool generate() {
-        // Spin-wait until successful. 
-        // In highly contested environments, this ensures a UUID is always returned.
+        uint16_t tries = 0;
+        
+        // Spin-wait until successful or limit reached.
         while (!UUID7::generate()) {
-            yield(); // Yield to background processes (WiFi/Watchdog)
+            if (++tries >= _max_retries) {
+                return false; // Prevent infinite loop in case of recurrent hardware failure
+            }
+            yield(); 
         }
         
         // Update cache immediately
         UUID7::toString(_cacheBuffer, sizeof(_cacheBuffer));
         return true;
+    }
+
+
+    /**
+     * @brief Parse a 36-character UUID string and update internal cache.
+     * @param str36 Source string.
+     * @return true if string is valid and parsed, false otherwise.
+     */
+    bool parse(const char* str36) noexcept {
+        bool ok = UUID7::parse(str36);
+        if (ok) {
+            UUID7::toString(_cacheBuffer, sizeof(_cacheBuffer));
+        }
+        return ok;
     }
 
     /**
@@ -100,3 +112,4 @@ public:
     
     // Allows: Serial.println(uuid) via Printable interface (inherited)
 };
+

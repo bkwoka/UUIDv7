@@ -63,7 +63,7 @@ UUID7 uuid;
 uint64_t my_time_provider(void* ctx) {
     // Return Unix Epoch in Milliseconds
     // Example: return rtc.getUnixTime() * 1000 + rtc.getMillis();
-    return 1698408000000ULL + millis(); // Mock for example
+    return 1773259080000ULL + millis(); // Mock for example
 }
 
 void setup() {
@@ -181,9 +181,12 @@ String id = uuid.toString();
 
 | Platform | Flash Cost | RAM Cost | Time per UUID |
 | :--- | :--- | :--- | :--- |
-| **AVR (Uno)** | ~1.5 KB | ~80 B | ~60 µs |
-| **ESP32** | ~1.0 KB | ~60 B | ~5 µs |
-| **RP2040** | ~1.2 KB | ~60 B | ~8 µs |
+| **AVR (Uno)** | ~1.5 KB | ~88 B | ~60 µs |
+| **ESP32** | ~1.0 KB | ~68 B | ~5 µs |
+| **RP2040** | ~1.2 KB | ~68 B | ~8 µs |
+| **STM32** | ~1.2 KB | ~68 B | ~8 µs |
+
+*Note: RP2040 multi-core spinlocks require Earle Philhower's `pico-sdk` core. Mbed core falls back to global interrupt disable.*
 
 ---
 
