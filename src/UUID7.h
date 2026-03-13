@@ -4,7 +4,7 @@
 
 #pragma once
 
-#define UUID7_LIB_VERSION "1.2.1"
+#define UUID7_LIB_VERSION "1.3.0"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -13,18 +13,17 @@
 #include <ostream>
 #endif
 
-enum UUIDVersion { UUID_VERSION_4 = 4, UUID_VERSION_7 = 7 };
+#include "UUID7Types.h"
 
-enum UUIDOverflowPolicy {
-  UUID_OVERFLOW_FAIL_FAST, // Return false immediately (default)
+// Auto-enable optimization for AVR architecture to save Flash/Cycles.
+// MUST be defined before including TimestampState.h
+#if (defined(ARDUINO_ARCH_AVR) || defined(__AVR__)) &&                         \
+    !defined(UUID7_NO_OPTIMIZE)
+#define UUID7_OPTIMIZE_SIZE
+#endif
 
-  /**
-   * @brief Busy-wait for the next millisecond.
-   * @warning NEVER use from an ISR. delay() inside an interrupt
-   * will cause a system crash (ESP32 Panic / AVR hang).
-   */
-  UUID_OVERFLOW_WAIT
-};
+#include "UUID7Persistence.h"
+#include "TimestampState.h"
 
 #include <string.h>
 
@@ -36,31 +35,38 @@ enum UUIDOverflowPolicy {
 #define UUID7_DEPRECATED(msg)
 #endif
 
-// Auto-enable optimization for AVR architecture to save Flash/Cycles
-#if (defined(ARDUINO_ARCH_AVR) || defined(__AVR__)) &&                         \
-    !defined(UUID7_NO_OPTIMIZE)
-#define UUID7_OPTIMIZE_SIZE
+#if defined(__has_cpp_attribute) && __has_cpp_attribute(nodiscard)
+#define UUID7_NODISCARD [[nodiscard]]
+#elif defined(__GNUC__)
+#define UUID7_NODISCARD __attribute__((warn_unused_result))
+#else
+#define UUID7_NODISCARD
 #endif
+
 
 #if defined(ARDUINO)
 #include <Arduino.h>
 #endif
 
+/**
+ * @warning Copying a UUID7 object copies its monotonicity state (_tsState).
+ * Two copies driven independently will produce UUIDs that may compare
+ * less-than each other — violating K-sortability. Use copies only as
+ * read-only snapshots (comparison, serialization), never as separate generators.
+ */
 #if defined(ARDUINO)
 class UUID7 : public Printable {
 #else
 class UUID7 {
 #endif
 public:
-  typedef void (*fill_random_fn)(uint8_t *dest, size_t len, void *ctx);
-  typedef uint64_t (*now_ms_fn)(void *ctx);
+  typedef uuid7::fill_random_fn fill_random_fn;
+  typedef uuid7::now_ms_fn now_ms_fn;
 
-  // State Persistence Callbacks
-  typedef void (*uuid_save_fn)(uint64_t timestamp, void *ctx);
-  typedef uint64_t (*uuid_load_fn)(void *ctx);
+  typedef uuid7::uuid_save_fn uuid_save_fn;
+  typedef uuid7::uuid_load_fn uuid_load_fn;
 
-  // Thread Safety Callbacks
-  typedef void (*lock_fn_t)(void);
+  typedef uuid7::lock_fn_t lock_fn_t;
 
   /**
    * @brief Set custom threshold for clock regression (default: 10000 ms).
@@ -73,12 +79,15 @@ public:
    */
   void setEntropyAnalogPin(int16_t pin) { _entropyAnalogPin = pin; }
 
+
   /**
    * @brief Inject custom thread lock/unlock callbacks (e.g., for FreeRTOS).
    */
   void setLockCallbacks(lock_fn_t lock_cb, lock_fn_t unlock_cb) {
-    _lock_cb = lock_cb;
-    _unlock_cb = unlock_cb;
+    // Both callbacks must be provided, or neither. Prevents UB/Deadlocks.
+    bool both = (lock_cb != nullptr) && (unlock_cb != nullptr);
+    _lock_cb = both ? lock_cb : nullptr;
+    _unlock_cb = both ? unlock_cb : nullptr;
   }
 
   /**
@@ -130,11 +139,13 @@ public:
    */
   void mixEntropy(uint64_t seed) noexcept { _entropy_mixer = seed; }
 
-  // --- GETTERS ---
-
   /**
    * @brief Get current configured UUID version.
-   * @return Current version (e.g., UUID_VERSION_7).
+   * @warning After a major clock regression, the generator temporarily falls back 
+   * to emitting a v4 UUID to prevent collisions. In such cases, this method still 
+   * returns the configured version (v7), while isV7() will return false. 
+   * Always use isV7() / isV4() to inspect the actual state of the generated buffer.
+   * @return Current configured version (e.g., UUID_VERSION_7).
    */
   UUIDVersion getVersion() const noexcept { return _version; }
 
@@ -166,11 +177,10 @@ public:
    */
   uint64_t getTimestamp() const noexcept;
 
-  // --- INSTANCE PARSER ---
-
   /**
-   * @brief Parse a 36-character UUID string directly into this object.
-   * @param str36 Source string.
+   * @brief Parse a UUID string directly into this object.
+   * Supports both 36-character (dashed) and 32-character (undashed) formats.
+   * @param str36 Source string (36 or 32 chars).
    * @return true if string is valid and parsed, false otherwise.
    */
   bool parse(const char *str36) noexcept { return parseFromString(str36, _b); }
@@ -221,7 +231,7 @@ public:
    *
    * @return true if successful, false if time source is invalid (returns 0).
    */
-  bool generate();
+  UUID7_NODISCARD bool generate();
 
   /**
    * @brief Import 16 raw bytes into the UUID object.
@@ -251,14 +261,14 @@ public:
   const uint8_t *data() const noexcept { return _b; }
 
   /**
-   * @brief Parse a 36-character UUID string into 16-byte binary format.
-   * @param str36 Source string.
+   * @brief Parse a UUID string into 16-byte binary format.
+   * Supports both 36-character (dashed) and 32-character (undashed) formats.
+   * @param str36 Source string (36 or 32 chars).
    * @param out Destination 16-byte array.
    * @return true if string is valid and parsed, false otherwise.
    */
   static bool parseFromString(const char *str36, uint8_t out[16]) noexcept;
 
-  // --- Default Platform Implementations ---
   static void default_fill_random(uint8_t *dest, size_t len,
                                   void *ctx) noexcept;
   static uint64_t default_now_ms(void *ctx) noexcept;
@@ -270,8 +280,6 @@ public:
     return p.print(buf);
   }
 #endif
-
-  // --- Comparison and Logic Operators ---
 
   /** @brief Check if two UUIDs are identical. */
   bool operator==(const UUID7 &other) const {
@@ -316,23 +324,12 @@ private:
   now_ms_fn _now;
   void *_now_ctx;
 
-  // State for Monotonicity
-#ifdef UUID7_OPTIMIZE_SIZE
-  uint8_t _last_ts_48[6]; // 48-bit timestamp stored as Big Endian bytes
-#else
-  uint64_t _last_ts_ms;
-#endif
+  TimestampState _tsState;
 
-  // Persistence State
-  uuid_load_fn _load;
-  uuid_save_fn _save;
-  void *_storage_ctx;
-  uint32_t _save_interval_ms;
-  uint64_t _last_saved_ts_ms;
+  UUID7PersistenceState _persistence;
 
   uint64_t _entropy_mixer;
 
-  // Runtime Configuration
   uint32_t _regressionThresholdMs;
   int16_t _entropyAnalogPin;
   lock_fn_t _lock_cb;

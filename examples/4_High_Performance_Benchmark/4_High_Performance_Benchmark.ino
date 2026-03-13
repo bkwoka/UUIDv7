@@ -40,7 +40,7 @@ void setup() {
     Serial.println("\n--- UUIDv7 Performance Benchmark ---");
 
     // TEST 1: Fail Fast (Default)
-    // If the 74-bit counter overflows in the same millisecond, generate() returns false.
+    // If the 74-bit random monotonicity counter overflows in the same millisecond, generate() returns false.
     uuid.setOverflowPolicy(UUID_OVERFLOW_FAIL_FAST);
     run_benchmark("Policy: FAIL_FAST");
 

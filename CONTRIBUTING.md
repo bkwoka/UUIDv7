@@ -47,7 +47,7 @@ This project uses clang-format to enforce a consistent code style.
 Before submitting a pull request, format all changed .cpp and .h files:
 
 ```bash
-clang-format -i src/UUID7.h src/UUID7.cpp src/EasyUUID7.h
+clang-format -i src/*.cpp src/*.h
 ```
 
 A .clang-format configuration file is provided at the root of the repository.

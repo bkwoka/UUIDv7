@@ -123,6 +123,7 @@ void loop() {}
 The library automatically selects the best available entropy source:
 *   **ESP32 / ESP8266**: Uses hardware TRNG (`esp_random`, `os_get_random`).
 *   **RP2040**: Uses hardware ROSC (Ring Oscillator).
+*   **STM32**: Uses Arduino `random()` XOR-ed with 96-bit UID and SysTick. **Warning:** Guarantees spatial uniqueness, but is NOT cryptographically secure.
 *   **AVR (Uno/Nano)**: Uses ADC noise. **Warning:** Not cryptographically secure by default.
 
 **For AVR Production:**
