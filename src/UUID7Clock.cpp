@@ -29,8 +29,9 @@ uint64_t UUID7::default_now_ms(void *ctx) noexcept {
   //
   // NOTE: These static variables are accessed outside the spinlock.
   // On single-core platforms (AVR, ESP8266, STM32) this is safe.
-  // On RP2040 dual-core, a concurrent wraparound detection could cause
-  // s_epoch_offset to be incremented twice (~once per 49 days). The result
+  // On RP2040 dual-core, a concurrent read/write of the 64-bit s_epoch_offset
+  // can result in a "torn read" (as Cortex-M0+ lacks 64-bit atomic instructions),
+  // or a double increment during wraparound. The result
   // is a ~99-day forward jump, which triggers clock-regression fallback
   // (UUIDv4 for that call). Probability is negligible in practice.
   static uint32_t s_prev_ms = 0;

@@ -45,7 +45,7 @@ public:
    * @return true if successful, false if max_retries exceeded (e.g., hardware
    * failure).
    */
-  bool generate() {
+  UUID7_NODISCARD bool generate() {
     uint16_t tries = 0;
 
     // Spin-wait until successful or limit reached.

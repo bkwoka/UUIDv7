@@ -141,7 +141,11 @@ public:
 
   /**
    * @brief Get current configured UUID version.
-   * @return Current version (e.g., UUID_VERSION_7).
+   * @warning After a major clock regression, the generator temporarily falls back 
+   * to emitting a v4 UUID to prevent collisions. In such cases, this method still 
+   * returns the configured version (v7), while isV7() will return false. 
+   * Always use isV7() / isV4() to inspect the actual state of the generated buffer.
+   * @return Current configured version (e.g., UUID_VERSION_7).
    */
   UUIDVersion getVersion() const noexcept { return _version; }
 

@@ -80,6 +80,6 @@ private:
 #if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
   uint8_t _sreg;
 #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
-  uint32_t _saved_irq;
+  uint32_t _saved_irq = 0;
 #endif
 };
