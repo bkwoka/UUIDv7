@@ -271,6 +271,7 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
   dest[len - 1] ^= (uint8_t)((tick >> 8) & 0xFF);
 
 #elif defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
+  // ctx is intentionally used here to access _entropyAnalogPin via UUID7* cast.
 #warning                                                                       \
     "UUID7: Using fallback entropy (ADC noise + Clock Jitter). Not cryptographically secure."
 
@@ -368,6 +369,13 @@ uint64_t UUID7::default_now_ms(void *ctx) noexcept {
   // Standard millis() returns a uint32_t which overflows after
   // approximately 49.7 days. A static accumulator is used to extend the value
   // to 64 bits.
+  //
+  // NOTE: These static variables are accessed outside the spinlock.
+  // On single-core platforms (AVR, ESP8266, STM32) this is safe.
+  // On RP2040 dual-core, a concurrent wraparound detection could cause
+  // s_epoch_offset to be incremented twice (~once per 49 days). The result
+  // is a ~99-day forward jump, which triggers clock-regression fallback
+  // (UUIDv4 for that call). Probability is negligible in practice.
   static uint32_t s_prev_ms = 0;
   static uint64_t s_epoch_offset = 0;
 

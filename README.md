@@ -149,7 +149,12 @@ Custom threshold:
 uuid.setRegressionThreshold(10000);
 ```
 
-💡 Arduino millis() 49-day wraparound: The default time source automatically handles the 32-bit millis() overflow (which occurs every ~49.7 days) by extending it to 64-bit in software. Note: This requires generate() to be called at least once every 49 days. If your device spends months in Deep Sleep, the hardware timer will lose track of time. In such cases, inject a real-time clock (RTC) or NTP provider via setTimeProvider().
+> 💡 **Arduino `millis()` 49-day wraparound:** The default time source automatically
+> handles the 32-bit `millis()` overflow (which occurs every ~49.7 days) by tracking
+> overflows in software and extending the counter to 64 bits.
+> **Note:** This requires `generate()` to be called at least once within any 49-day
+> window. If your device spends months in Deep Sleep without waking, inject an RTC or
+> NTP provider via `setTimeProvider()`.
 
 ### 3. Persistence (Safety Jump)
 To prevent generating duplicate UUIDs after a reboot (if the clock isn't perfectly synced), save the state to non-volatile memory:
