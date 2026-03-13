@@ -29,8 +29,11 @@ void my_secure_rng(uint8_t* dest, size_t len, void* ctx) {
     #elif defined(ESP8266)
         os_get_random(dest, len);
     #elif defined(ARDUINO_ARCH_RP2040)
-        for (size_t i = 0; i < len; i++) {
-            dest[i] = (uint8_t)rp2040.hw_rosc_get_randombyte();
+        for (size_t i = 0; i < len; i += 4) {
+            uint32_t r = rp2040.hwrand32();
+            for (size_t j = 0; j < 4 && (i + j) < len; j++) {
+                dest[i + j] = (r >> (j * 8)) & 0xFF;
+            }
         }
     #else
         // AVR / Other: Improved ADC mixing
