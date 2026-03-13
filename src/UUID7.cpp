@@ -50,7 +50,7 @@ static inline void yield() {} // Fallback for non-Arduino bare-metal platforms
 // RAII Guard for Critical Sections
 class UUID7Guard {
 public:
-  UUID7Guard(void (*lock_cb)(void), void (*unlock_cb)(void)) 
+  UUID7Guard(void (*lock_cb)(void), void (*unlock_cb)(void))
       : _lock_cb(lock_cb), _unlock_cb(unlock_cb) {
     if (_lock_cb) {
       // Use user-provided lock callback if available
@@ -68,8 +68,8 @@ public:
     } else {
       noInterrupts();
     }
-#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) || \
-      defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
+#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) ||                       \
+    defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
     noInterrupts();
 #elif defined(PLATFORMIO_NATIVE)
     _uuid_mutex.lock();
@@ -92,8 +92,8 @@ public:
     } else {
       interrupts();
     }
-#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) || \
-      defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
+#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) ||                       \
+    defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
     interrupts();
 #elif defined(PLATFORMIO_NATIVE)
     _uuid_mutex.unlock();
@@ -112,7 +112,6 @@ private:
   uint32_t _saved_irq;
 #endif
 };
-
 
 // --- INTERNAL HELPERS ---
 #if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
@@ -140,8 +139,8 @@ UUID7::UUID7(fill_random_fn rng, void *rng_ctx, now_ms_fn now,
              void *now_ctx) noexcept
     : _version(UUID_VERSION_7), _overflowPolicy(UUID_OVERFLOW_FAIL_FAST),
       _rng(rng),
-      // _rng_ctx defaults to 'this' so the static default_fill_random can access
-      // instance variables (like _entropyAnalogPin) via a void* cast.
+      // _rng_ctx defaults to 'this' so the static default_fill_random can
+      // access instance variables (like _entropyAnalogPin) via a void* cast.
       _rng_ctx(rng ? rng_ctx : this), _now(now), _now_ctx(now_ctx),
 #ifndef UUID7_OPTIMIZE_SIZE
       _last_ts_ms(0),
@@ -158,7 +157,8 @@ UUID7::UUID7(fill_random_fn rng, void *rng_ctx, now_ms_fn now,
 #if defined(A0)
   _entropyAnalogPin = A0;
 #else
-  _entropyAnalogPin = 14; // Default to pin 14 (A0) for ATmega328P based boards (Uno/Nano)
+  // Default to pin 14 (A0) for ATmega328P based boards (Uno/Nano)
+  _entropyAnalogPin = 14;
 #endif
 #else
   _entropyAnalogPin = -1;
@@ -279,7 +279,8 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
     entropy ^= uuid_mix32((uint32_t)((uintptr_t)default_fill_random));
     entropy ^= uuid_mix32(micros());
 
-    int16_t analog_pin = ctx ? static_cast<UUID7*>(ctx)->_entropyAnalogPin : -1;
+    int16_t analog_pin =
+        ctx ? static_cast<UUID7 *>(ctx)->_entropyAnalogPin : -1;
     if (analog_pin >= 0) {
       for (int i = 0; i < 4; i++) {
         (void)analogRead(analog_pin);
@@ -355,21 +356,24 @@ uint64_t UUID7::default_now_ms(void *ctx) noexcept {
              system_clock::now().time_since_epoch())
       .count();
 #elif defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
-  // ESP32 provides a native 64-bit microsecond timer. Overflow occurs in ~292,000 years.
+  // ESP32 provides a native 64-bit microsecond timer. Overflow occurs in
+  // ~292,000 years.
   return (uint64_t)(esp_timer_get_time() / 1000ULL);
 #elif defined(ARDUINO)
   // Fallback for AVR, ESP8266, STM32, and RP2040.
-  // Standard millis() returns a uint32_t which overflows after approximately 49.7 days.
-  // A static accumulator is used to extend the value to 64 bits.
+  // Standard millis() returns a uint32_t which overflows after
+  // approximately 49.7 days. A static accumulator is used to extend the value
+  // to 64 bits.
   static uint32_t s_prev_ms = 0;
   static uint64_t s_epoch_offset = 0;
-  
+
   uint32_t now = millis();
   if (now < s_prev_ms) {
-    s_epoch_offset += 0x100000000ULL; // Increment epoch offset by 2^32 milliseconds
+    // Increment epoch offset by 2^32 milliseconds
+    s_epoch_offset += 0x100000000ULL;
   }
   s_prev_ms = now;
-  
+
   return s_epoch_offset + now;
 #else
   return 0;
@@ -465,7 +469,8 @@ bool UUID7::generate() {
     bool overflow_occurred = false;
 
     {
-      UUID7Guard lock(_lock_cb, _unlock_cb); // Ensure thread-safe access to monotonicity state
+      // Ensure thread-safe access to monotonicity state
+      UUID7Guard lock(_lock_cb, _unlock_cb);
 
       if (_entropy_mixer != 0) {
         for (int i = 0; i < 8; i++) {
