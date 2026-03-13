@@ -31,8 +31,27 @@ This section guides you through submitting an enhancement suggestion, including 
 To run tests locally, you need PlatformIO installed.
 
 ```bash
+# Run core library tests
 platformio test -e test
+
+# Run AVR-compatibility tests (UUID7_OPTIMIZE_SIZE)
+platformio test -e test_avr_compat
+
+# Run EasyUUID7 wrapper tests
+platformio test -e test_easy
 ```
+
+## Code Style
+
+This project uses clang-format to enforce a consistent code style.
+Before submitting a pull request, format all changed .cpp and .h files:
+
+```bash
+clang-format -i src/UUID7.h src/UUID7.cpp src/EasyUUID7.h
+```
+
+A .clang-format configuration file is provided at the root of the repository.
+Pull requests with unformatted code may be asked to reformat before merging.
 
 ## Code of Conduct
 

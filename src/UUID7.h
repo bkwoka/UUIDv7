@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 bkwoka
+// Repository: https://github.com/bkwoka/UUIDv7
+
 #pragma once
 
 #define UUID7_LIB_VERSION "1.2.0"

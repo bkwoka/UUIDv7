@@ -48,6 +48,9 @@ jobs:
       - name: Run AVR-compat Tests (UUID7_OPTIMIZE_SIZE)
         run: platformio test -e test_avr_compat
 
+      - name: Run EasyUUID7 Tests
+        run: platformio test -e test_easy
+
       - name: Generate Coverage Report
         run: |
           lcov --directory .pio/build/test --capture --output-file coverage_main.info

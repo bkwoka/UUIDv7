@@ -48,3 +48,18 @@
 ### Fixed
 - Fixed 48-bit timestamp masking in `OPTIMIZE_SIZE` (AVR) branch to strictly comply with RFC 9562.
 - Fixed potential stale state in `EasyUUID7` when parsing strings.
+
+## [1.0.0] - 2026-02-01
+
+### Added
+- Initial implementation of UUID Version 7 (RFC 9562) for Arduino/embedded systems.
+- Zero-allocation design: no `malloc`, no `new`, no `std::string`.
+- Platform-specific entropy sources: ESP32 hardware TRNG, ESP8266 WDEV RNG, AVR ADC noise fallback.
+- Monotonicity guarantee via sub-millisecond counter increment.
+- Fail-fast API: `generate()` returns `bool` on RNG or clock failure.
+- `toString()` / `parseFromString()` with 36-char standard format.
+- `setTimeProvider()` / `setRandomSource()` for dependency injection.
+- Persistence hooks: `setStorage()` / `load()` with Safety Jump mechanism.
+- Overflow policy: `UUID_OVERFLOW_FAIL_FAST` / `UUID_OVERFLOW_WAIT`.
+- Native C++11 Linux/macOS support for testing.
+- PlatformIO and Arduino Library Manager packaging.
