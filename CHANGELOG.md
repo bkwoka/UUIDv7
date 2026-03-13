@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1] - 2026-03-13
+
+### Fixed
+- **Concurrency**: Fixed potential deadlock when using blocking time providers (e.g., I2C RTC) by implementing an Optimistic Read strategy.
+- **Thread Safety**: Fixed torn reads in `toString()` in multi-core environments by adding a local snapshot under spinlock.
+- **RTOS Stability**: Replaced `yield()` with `delay(1)` in `UUID_OVERFLOW_WAIT` policy to prevent Task Watchdog (TWDT) resets on ESP32/FreeRTOS.
+- **Persistence**: Fixed ping-pong EEPROM overwrite logic in `2_Robust_Persistence` example to correctly repair corrupted slots.
+- **API**: Fixed `EasyUUID7` implicit casting to prevent returning empty strings on uninitialized const objects.
+- **Bugfix**: Restored `initialized` check during same-millisecond generation to prevent low-entropy UUIDs immediately after a state load.
+
 ## [1.1.0] - 2026-03-11
 
 ### Added

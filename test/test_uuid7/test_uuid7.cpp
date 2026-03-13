@@ -602,6 +602,35 @@ void test_parse_instance() {
     TEST_ASSERT_FALSE(g1 < g2);
 }
 
+void test_initialized_after_load() {
+    // Simulate state after device reboot
+    mock_nvs_storage = 5000;
+    
+    // Set time to exactly the value where Safety Jump would land (5000 + 1000 = 6000)
+    // This forces the 'same millisecond' path in generate()
+    mock_time_val = 6000; 
+    
+    // Use deterministic RNG for predictable output
+    mock_rng_val = 0xA0; 
+    UUID7 g(deterministic_rng, nullptr, mock_now_ms, nullptr);
+    
+    g.setStorage(mock_load_fn, mock_save_fn, nullptr, 1000);
+    g.load(); // Sets internal time to 6000 and leaves _b buffer zeroed
+    
+    TEST_ASSERT_TRUE(g.generate());
+    
+    const uint8_t* b = g.data();
+    
+    /**
+     * Verification of 'initialized' status:
+     * If the 'initialized' bug persists, the code will ignore RNG and simply 
+     * increment the zeroed buffer. In that case, b[15] would be 0x01.
+     * If fixed, the code uses RNG. deterministic_rng fills bits 0..15 with 
+     * mock_rng_val++, so b[15] should be mock_rng_val + 15 = 0xA0 + 0x0F = 0xAF.
+     */
+    TEST_ASSERT_EQUAL_UINT8(0xAF, b[15]);
+}
+
 // --- TEST RUNNER ---
 
 void run_tests() {
@@ -639,6 +668,7 @@ void run_tests() {
     RUN_TEST(test_entropy_mix);
     RUN_TEST(test_getters);
     RUN_TEST(test_parse_instance);
+    RUN_TEST(test_initialized_after_load);
 
     UNITY_END();
 }

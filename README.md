@@ -209,14 +209,29 @@ int main() {
 
 ## API Reference
 
-*   `bool generate()`: Generates a new UUID.
+### Core Methods
+*   `bool generate()`: Generates a new UUID. Returns false on hardware RNG/Clock failure.
 *   `void setVersion(UUIDVersion v)`: Set `UUID_VERSION_7` or `UUID_VERSION_4`.
-*   `void setTimeProvider(now_ms_fn now, void* ctx)`: **Required for v7.**
-*   `void setRandomProvider(fill_random_fn rng, void* ctx)`: Inject custom RNG.
-*   `bool toString(char* out, ...)`: Convert to string.
-*   `static bool parseFromString(...)`: Parse string to binary.
-*   `const uint8_t* data()`: Access raw bytes.
+*   `bool toString(char* out, size_t buflen, bool uppercase = false, bool dashes = true)`: Convert to string.
+*   `const uint8_t* data()`: Access raw 16 bytes.
+
+### Configuration (Dependency Injection)
+*   `void setTimeProvider(now_ms_fn now, void* ctx)`: **Required for v7.** Inject time source.
+*   `void setRandomSource(fill_random_fn rng, void* ctx)`: Inject custom RNG.
+*   `void mixEntropy(uint64_t seed)`: Inject additional entropy (e.g., MAC address) to prevent collisions across fleets without NTP.
+*   `void setOverflowPolicy(UUIDOverflowPolicy policy)`: Set behavior for sub-millisecond overflow (`FAIL_FAST` or `WAIT`).
+
+### Parsing & Inspection
+*   `bool parse(const char* str36)`: Parse a string directly into the instance.
+*   `static bool parseFromString(const char* str36, uint8_t out[16])`: Parse string to binary.
+*   `void fromBytes(const uint8_t bytes[16])`: Import raw bytes.
+*   `UUIDVersion getVersion()`: Returns the version of the current UUID.
+*   `uint8_t getVariant()`: Returns the variant (should be 2 for RFC 4122).
+*   `bool isV7() / bool isV4()`: Quick version checks.
+
+### Relational Operators
+*   `==`, `!=`, `<`, `>`, `<=`, `>=`: Fully supported for K-Sortable database indexing.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) file.
+MIT License. See [LICENSE](https://opensource.org/licenses/MIT) file.
