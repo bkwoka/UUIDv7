@@ -1,5 +1,17 @@
 # Changelog
- 
+
+## [1.2.1] - 2026-03-13
+
+### Added
+- **Docs**: Added comprehensive API Reference for `EasyUUID7` wrapper in README.
+- **Examples**: Added Example 7 (`7_STM32_Fleet_Unique_IDs`) demonstrating `mixEntropy()` with STM32 96-bit hardware UID.
+- **Maintenance**: Added `.clang-format` and SPDX license headers to all source files.
+
+### Fixed
+- **Platform (ESP32)**: `default_now_ms()` now uses the native 64-bit `esp_timer_get_time()` instead of `millis()`, eliminating the 49-day wraparound concern entirely on ESP32.
+- **Platform (Arduino)**: `default_now_ms()` now tracks `millis()` overflows in software, extending the counter to 64 bits and preventing clock-regression fallback after 49.7 days of uptime on AVR, ESP8266, STM32, and RP2040.
+- **Testing**: Added `test_filter` to `platformio.ini` environments to properly isolate core tests from wrapper tests.
+
 ## [1.2.0] - 2026-03-13
 
 ### Added
@@ -48,3 +60,18 @@
 ### Fixed
 - Fixed 48-bit timestamp masking in `OPTIMIZE_SIZE` (AVR) branch to strictly comply with RFC 9562.
 - Fixed potential stale state in `EasyUUID7` when parsing strings.
+
+## [1.0.0] - 2026-02-01
+
+### Added
+- Initial implementation of UUID Version 7 (RFC 9562) for Arduino/embedded systems.
+- Zero-allocation design: no `malloc`, no `new`, no `std::string`.
+- Platform-specific entropy sources: ESP32 hardware TRNG, ESP8266 WDEV RNG, AVR ADC noise fallback.
+- Monotonicity guarantee via sub-millisecond counter increment.
+- Fail-fast API: `generate()` returns `bool` on RNG or clock failure.
+- `toString()` / `parseFromString()` with 36-char standard format.
+- `setTimeProvider()` / `setRandomSource()` for dependency injection.
+- Persistence hooks: `setStorage()` / `load()` with Safety Jump mechanism.
+- Overflow policy: `UUID_OVERFLOW_FAIL_FAST` / `UUID_OVERFLOW_WAIT`.
+- Native C++11 Linux/macOS support for testing.
+- PlatformIO and Arduino Library Manager packaging.
