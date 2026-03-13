@@ -13,18 +13,9 @@
 #include <ostream>
 #endif
 
-enum UUIDVersion { UUID_VERSION_4 = 4, UUID_VERSION_7 = 7 };
-
-enum UUIDOverflowPolicy {
-  UUID_OVERFLOW_FAIL_FAST, // Return false immediately (default)
-
-  /**
-   * @brief Busy-wait for the next millisecond.
-   * @warning NEVER use from an ISR. delay() inside an interrupt
-   * will cause a system crash (ESP32 Panic / AVR hang).
-   */
-  UUID_OVERFLOW_WAIT
-};
+#include "UUID7Types.h"
+#include "UUID7Persistence.h"
+#include "TimestampState.h"
 
 #include <string.h>
 
@@ -52,15 +43,15 @@ class UUID7 : public Printable {
 class UUID7 {
 #endif
 public:
-  typedef void (*fill_random_fn)(uint8_t *dest, size_t len, void *ctx);
-  typedef uint64_t (*now_ms_fn)(void *ctx);
+  typedef uuid7::fill_random_fn fill_random_fn;
+  typedef uuid7::now_ms_fn now_ms_fn;
 
   // State Persistence Callbacks
-  typedef void (*uuid_save_fn)(uint64_t timestamp, void *ctx);
-  typedef uint64_t (*uuid_load_fn)(void *ctx);
+  typedef uuid7::uuid_save_fn uuid_save_fn;
+  typedef uuid7::uuid_load_fn uuid_load_fn;
 
   // Thread Safety Callbacks
-  typedef void (*lock_fn_t)(void);
+  typedef uuid7::lock_fn_t lock_fn_t;
 
   /**
    * @brief Set custom threshold for clock regression (default: 10000 ms).
@@ -72,6 +63,11 @@ public:
    * Set to -1 to disable analog noise reading.
    */
   void setEntropyAnalogPin(int16_t pin) { _entropyAnalogPin = pin; }
+
+  /**
+   * @brief Internal helper for entropy fallback to access the private pin.
+   */
+  int16_t setEntropyAnalogPinFallback() const { return _entropyAnalogPin; }
 
   /**
    * @brief Inject custom thread lock/unlock callbacks (e.g., for FreeRTOS).
@@ -317,18 +313,10 @@ private:
   void *_now_ctx;
 
   // State for Monotonicity
-#ifdef UUID7_OPTIMIZE_SIZE
-  uint8_t _last_ts_48[6]; // 48-bit timestamp stored as Big Endian bytes
-#else
-  uint64_t _last_ts_ms;
-#endif
+  TimestampState _tsState;
 
   // Persistence State
-  uuid_load_fn _load;
-  uuid_save_fn _save;
-  void *_storage_ctx;
-  uint32_t _save_interval_ms;
-  uint64_t _last_saved_ts_ms;
+  UUID7PersistenceState _persistence;
 
   uint64_t _entropy_mixer;
 
