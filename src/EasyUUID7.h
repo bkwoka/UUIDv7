@@ -82,7 +82,10 @@ public:
     char* toCharArray() {
         // Lazy generation if buffer is empty
         if (_cacheBuffer[0] == 0) {
-            generate();
+            if (!generate()) {
+                // Fallback to Nil UUID on critical hardware failure to prevent undefined behavior
+                strcpy(_cacheBuffer, "00000000-0000-0000-0000-000000000000");
+            }
         }
         return _cacheBuffer;
     }

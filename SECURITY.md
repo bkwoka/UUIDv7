@@ -13,7 +13,7 @@ This library is designed for embedded systems, which often lack a Cryptographica
 ## Thread Safety (RTOS & Multi-core)
 * **ESP32**: Fully thread-safe using `portMUX`.
 * **RP2040**: Fully thread-safe using hardware spinlocks (requires Earle Philhower core).
-* **STM32 / Custom FreeRTOS**: You must define `-DUUID7_USE_FREERTOS_CRITICAL` in your build flags to enable FreeRTOS thread safety. Otherwise, it falls back to disabling global interrupts.
+* **STM32 / Custom FreeRTOS**: You can inject custom thread-safety locks at runtime using `uuid.setLockCallbacks()`. For example, in FreeRTOS: `uuid.setLockCallbacks([](){ taskENTER_CRITICAL(); }, [](){ taskEXIT_CRITICAL(); });`.
 
 ## Reporting a Vulnerability
-If you discover a security vulnerability, please open an issue or contact the maintainer directly via GitHub.
+If you discover a security vulnerability, please use the GitHub Private Security Advisories feature to report it confidentially, or contact the maintainer directly.

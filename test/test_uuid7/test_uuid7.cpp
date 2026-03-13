@@ -324,13 +324,13 @@ void test_full_overflow_cycle() {
 // --- NEW TESTS FOR MISSING COVERAGE ---
 
 void test_full_overflow_cycle_detailed() {
-    static uint8_t mock_rng_val[16];
-    memset(mock_rng_val, 0, 16);
-    mock_rng_val[15] = 0xFF; // Max out last byte to force carry to byte 14
-    mock_rng_val[14] = 0xFE; 
+    static uint8_t mock_rng_array[16];
+    memset(mock_rng_array, 0, 16);
+    mock_rng_array[15] = 0xFF; // Max out last byte to force carry to byte 14
+    mock_rng_array[14] = 0xFE; 
 
     auto custom_rng = [](uint8_t* dest, size_t len, void*) {
-        memcpy(dest, mock_rng_val, len);
+        memcpy(dest, mock_rng_array, len);
     };
 
     mock_time_val = 1000; 
@@ -474,7 +474,27 @@ void test_ostream_operator() {
 #endif
 
 void test_regression_threshold() {
-    TEST_ASSERT_TRUE(UUID7_REGRESSION_THRESHOLD_MS > 0);
+    mock_time_val = 20000;
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
+    g.setRegressionThreshold(5000);
+    
+    // 1. Base generation
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.isV7());
+
+    // 2. Minor regression (4999ms) -> Should clamp to 20000ms and stay v7
+    mock_time_val = 15001;
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.isV7());
+    
+    uint64_t ts = 0;
+    for(int i=0; i<6; i++) ts = (ts << 8) | g.data()[i];
+    TEST_ASSERT_TRUE(ts == 20000); // Verify clamping
+
+    // 3. Major regression (5001ms) -> Should fallback to v4
+    mock_time_val = 14999;
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.isV4());
 }
 
 void test_from_bytes_and_formatting() {
@@ -631,6 +651,86 @@ void test_initialized_after_load() {
     TEST_ASSERT_EQUAL_UINT8(0xAF, b[15]);
 }
 
+// --- TESTS FOR PREVIOUSLY UNCOVERED API ---
+
+/**
+ * @brief Verifies getTimestamp() returns correct 48-bit value for v7
+ * and returns 0 for v4 (as documented).
+ */
+void test_get_timestamp() {
+    mock_time_val = 0x0123456789ABULL;
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.getTimestamp() == 0x0123456789ABULL);
+
+    // v4 must return 0
+    g.setVersion(UUID_VERSION_4);
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.getTimestamp() == 0ULL);
+}
+
+/**
+ * @brief Verifies isValid() correctly reflects object state:
+ * false before generation, true after v7, true after v4,
+ * true after fromBytes() with valid UUID bytes, false for zero buffer.
+ */
+void test_is_valid() {
+    // 1. Fresh object — not yet generated
+    UUID7 g;
+    TEST_ASSERT_FALSE(g.isValid());
+
+    // 2. After v7 generation
+    g.generate();
+    TEST_ASSERT_TRUE(g.isValid());
+
+    // 3. After v4 generation
+    g.setVersion(UUID_VERSION_4);
+    g.generate();
+    TEST_ASSERT_TRUE(g.isValid());
+
+    // 4. fromBytes() with valid v7 bytes
+    uint8_t v7_bytes[16] = {
+        0x01, 0x8D, 0x96, 0x0E, 0x2B, 0x77, 0x7F, 0x8D,
+        0x9C, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0
+    };
+    g.fromBytes(v7_bytes);
+    TEST_ASSERT_TRUE(g.isValid());
+
+    // 5. fromBytes() with all-zero buffer
+    uint8_t zero_bytes[16] = {0};
+    g.fromBytes(zero_bytes);
+    TEST_ASSERT_FALSE(g.isValid());
+}
+
+/**
+ * @brief Verifies that user-provided lock/unlock callbacks are actually
+ * invoked during generate() and that lock/unlock calls are balanced
+ * (no leaked locks).
+ */
+static int s_lock_count   = 0;
+static int s_unlock_count = 0;
+static void counting_lock()   { s_lock_count++;   }
+static void counting_unlock() { s_unlock_count++; }
+
+void test_lock_callbacks() {
+    s_lock_count = s_unlock_count = 0;
+    mock_time_val = 99000;
+
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
+    g.setLockCallbacks(counting_lock, counting_unlock);
+
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(s_lock_count > 0);
+    // Every lock must be paired with an unlock — no leaked critical sections
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+
+    // Second generate (same-ms path) must also balance
+    int prev = s_lock_count;
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(s_lock_count > prev);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+}
+
 // --- TEST RUNNER ---
 
 void run_tests() {
@@ -669,6 +769,10 @@ void run_tests() {
     RUN_TEST(test_getters);
     RUN_TEST(test_parse_instance);
     RUN_TEST(test_initialized_after_load);
+
+    RUN_TEST(test_get_timestamp);
+    RUN_TEST(test_is_valid);
+    RUN_TEST(test_lock_callbacks);
 
     UNITY_END();
 }

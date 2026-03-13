@@ -128,24 +128,25 @@ The library automatically selects the best available entropy source:
 **For AVR Production:**
 Connect a noise source to a floating pin or inject a custom RNG:
 ```cpp
-// Use a specific analog pin for entropy
-#define UUID7_ENTROPY_ANALOG_PIN A3
-#include <UUID7.h>
+// Use a specific analog pin for entropy (e.g., in setup)
+uuid.setEntropyAnalogPin(A3);
 ```
 Or inject a custom CSPRNG function:
 ```cpp
 void my_secure_rng(uint8_t* dest, size_t len, void* ctx) {
     // Read from ATECC608 secure element
 }
-uuid.setRandomProvider(my_secure_rng);
+uuid.setRandomSource(my_secure_rng);
 ```
+
+**Note for ESP8266:** If the device operates with Wi-Fi disabled (e.g., in Deep Sleep), use `setRandomSource()` as the hardware RNG loses entropy quality without the active radio.
 
 ### 2. Clock Regression (v7)
 If the clock moves backwards (e.g., NTP adjustment), UUIDv7 protects monotonicity. If the regression is huge (device reset to 1970), it handles it safely.
 Custom threshold:
 ```cpp
-#define UUID7_REGRESSION_THRESHOLD_MS 10000 // 10 seconds
-#include <UUID7.h>
+// Set threshold to 10 seconds (e.g., in setup)
+uuid.setRegressionThreshold(10000);
 ```
 
 ### 3. Persistence (Safety Jump)
@@ -220,6 +221,9 @@ int main() {
 *   `void setRandomSource(fill_random_fn rng, void* ctx)`: Inject custom RNG.
 *   `void mixEntropy(uint64_t seed)`: Inject additional entropy (e.g., MAC address) to prevent collisions across fleets without NTP.
 *   `void setOverflowPolicy(UUIDOverflowPolicy policy)`: Set behavior for sub-millisecond overflow (`FAIL_FAST` or `WAIT`).
+*   `void setRegressionThreshold(uint32_t ms)`: Set custom threshold for clock regression.
+*   `void setEntropyAnalogPin(int16_t pin)`: Set analog pin for AVR entropy generation.
+*   `void setLockCallbacks(lock_fn_t lock, lock_fn_t unlock)`: Inject custom thread locks (e.g., FreeRTOS).
 
 ### Parsing & Inspection
 *   `bool parse(const char* str36)`: Parse a string directly into the instance.
@@ -228,6 +232,8 @@ int main() {
 *   `UUIDVersion getVersion()`: Returns the version of the current UUID.
 *   `uint8_t getVariant()`: Returns the variant (should be 2 for RFC 4122).
 *   `bool isV7() / bool isV4()`: Quick version checks.
+*   `bool isValid() const`: Check if the object contains a valid, generated UUID.
+*   `uint64_t getTimestamp() const`: Extract the 48-bit timestamp (returns 0 if not v7).
 
 ### Relational Operators
 *   `==`, `!=`, `<`, `>`, `<=`, `>=`: Fully supported for K-Sortable database indexing.

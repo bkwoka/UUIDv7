@@ -9,91 +9,9 @@ on:
 
 jobs:
   build:
-    name: Build & Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Lint Arduino Library
-        uses: arduino/arduino-lint-action@v1
-        with:
-          library-manager: update
-
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/platformio.ini') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-
-      - name: Install PlatformIO
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade platformio
-
-      - name: Install lcov
-        run: sudo apt-get update && sudo apt-get install -y lcov
-
-      - name: Run Native Tests with Coverage
-        run: platformio test -e test
-
-      - name: Generate Coverage Report
-        run: |
-          lcov --directory .pio/build/test --capture --output-file coverage.info
-          lcov --remove coverage.info '*/.pio/*' '*/test/*' '/usr/*' --output-file coverage.info
-          lcov --list coverage.info
-
-      - name: Upload to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: coverage.info
-
-      - name: Build for ESP32
-        run: |
-          platformio ci --lib="." --board=esp32dev examples/1_Hello_UUID/1_Hello_UUID.ino
-          platformio ci --lib="." --board=esp32dev examples/2_Robust_Persistence/2_Robust_Persistence.ino
-          platformio ci --lib="." --board=esp32dev examples/3_Custom_Entropy_Strategy/3_Custom_Entropy_Strategy.ino
-          platformio ci --lib="." --board=esp32dev examples/4_High_Performance_Benchmark/4_High_Performance_Benchmark.ino
-
-      - name: Build for ESP8266
-        run: |
-          platformio ci --lib="." --board=esp12e examples/1_Hello_UUID/1_Hello_UUID.ino
-          platformio ci --lib="." --board=esp12e examples/2_Robust_Persistence/2_Robust_Persistence.ino
-          platformio ci --lib="." --board=esp12e examples/3_Custom_Entropy_Strategy/3_Custom_Entropy_Strategy.ino
-          platformio ci --lib="." --board=esp12e examples/4_High_Performance_Benchmark/4_High_Performance_Benchmark.ino
-
-      - name: Build for AVR (Uno)
-        run: |
-          platformio ci --lib="." --board=uno examples/1_Hello_UUID/1_Hello_UUID.ino
-          platformio ci --lib="." --board=uno examples/2_Robust_Persistence/2_Robust_Persistence.ino
-          platformio ci --lib="." --board=uno examples/3_Custom_Entropy_Strategy/3_Custom_Entropy_Strategy.ino
-          platformio ci --lib="." --board=uno examples/4_High_Performance_Benchmark/4_High_Performance_Benchmark.ino
-
-      - name: Build for RP2040 (Pico)
-        run: |
-          platformio ci --lib="." --project-option="platform=https://github.com/maxgerhardt/platform-raspberrypi.git" --project-option="board_build.core=earlephilhower" --board=pico examples/1_Hello_UUID/1_Hello_UUID.ino
-
-      - name: Build for STM32 (BluePill)
-        run: |
-          platformio ci --lib="." --board=bluepill_f103c8 examples/1_Hello_UUID/1_Hello_UUID.ino
-
-      - name: Package Release ZIP
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          zip -r UUIDv7-${{ github.ref_name }}.zip \
-            src/ examples/ keywords.txt \
-            library.properties library.json \
-            README.md LICENSE SECURITY.md CHANGELOG.md
-
-      - name: Upload Release Artifact
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v4
-        with:
-          name: UUIDv7-${{ github.ref_name }}
-          path: UUIDv7-${{ github.ref_name }}.zip
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-and-test.yml
+    with:
+      is_release: ${{ startsWith(github.ref, 'refs/tags/') }}
+    secrets: inherit
