@@ -240,6 +240,42 @@ int main() {
 ### Relational Operators
 *   `==`, `!=`, `<`, `>`, `<=`, `>=`: Fully supported for K-Sortable database indexing.
 
+---
+
+## EasyUUID7 API Reference
+
+`EasyUUID7` extends `UUID7` with automatic string caching and Arduino `String` integration.
+Include with `#include "EasyUUID7.h"`.
+
+> **RAM overhead:** +37 B for the internal string cache compared to `UUID7`.
+
+### Constructor
+*   `EasyUUID7(uint16_t max_retries = 100)`: Creates the wrapper. `max_retries` limits spin-wait
+    iterations when hardware RNG fails — prevents WDT resets.
+
+### Generation & String Access
+*   `bool generate()`: Generates a UUID with automatic retry. Updates internal string cache.
+    Returns `false` only if `max_retries` is exhausted (hardware failure).
+*   `char* toCharArray()`: Returns a pointer to the internal 37-byte C-string cache.
+    **Lazy:** triggers `generate()` on first call if the buffer is empty.
+    On critical failure returns the Nil UUID string `"00000000-0000-0000-0000-000000000000"`.
+*   `String toString(bool uppercase = false, bool dashes = true)`: Returns an Arduino `String`.
+    Does **not** use the internal cache — builds a new `String` each call.
+
+### Parsing
+*   `bool parse(const char* str36)`: Parses a UUID string and synchronizes the internal cache.
+*   `bool parse(const String& str)`: Overload accepting Arduino `String`.
+*   `void fromBytes(const uint8_t bytes[16])`: Imports raw bytes and updates the cache.
+
+### Convenience Operators
+*   `operator String() const`: Allows `String s = uuid;`
+*   `operator const char*()`: Allows `const char* s = uuid;` (non-const, triggers lazy init).
+*   `Serial.println(uuid)`: Via inherited `Printable` interface.
+
+> **Note:** `data()` is inherited from `UUID7` but is **not thread-safe**. In multi-threaded
+> environments (ESP32/RP2040) use `toString()` or `toCharArray()` instead, as they acquire
+> the spinlock internally.
+
 ## License
 
 MIT License. See [LICENSE](https://opensource.org/licenses/MIT) file.

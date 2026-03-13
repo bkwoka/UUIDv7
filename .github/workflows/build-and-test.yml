@@ -98,6 +98,7 @@ jobs:
           platformio ci --lib="." --board=bluepill_f103c8 examples/2_Robust_Persistence/2_Robust_Persistence.ino
           platformio ci --lib="." --board=bluepill_f103c8 examples/3_Custom_Entropy_Strategy/3_Custom_Entropy_Strategy.ino
           platformio ci --lib="." --board=bluepill_f103c8 examples/4_High_Performance_Benchmark/4_High_Performance_Benchmark.ino
+          platformio ci --lib="." --board=bluepill_f103c8 examples/7_STM32_Fleet_Unique_IDs/7_STM32_Fleet_Unique_IDs.ino
 
       - name: Package Release ZIP
         if: inputs.is_release

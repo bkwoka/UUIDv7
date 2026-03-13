@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
 #if !defined(ARDUINO)
 #include <ostream>
 #endif
@@ -147,7 +146,14 @@ public:
   /** @brief Check if the currently generated UUID is Version 4. */
   bool isV4() const noexcept { return ((_b[6] >> 4) & 0x0F) == 4; }
 
-  /** @brief Check if the object contains a valid, generated UUID. */
+  /**
+   * @brief Check if the object contains a valid, generated UUID.
+   * @return true if the internal buffer holds a Version 7 or Version 4 UUID.
+   * @note Returns false for a freshly constructed object (before generate()),
+   *       for an all-zero buffer, and for UUIDs of other versions (v1, v3, v5)
+   *       loaded via fromBytes() or parseFromString(), as this library only
+   *       generates and recognises v4 and v7.
+   */
   bool isValid() const noexcept { return isV7() || isV4(); }
 
   /**
