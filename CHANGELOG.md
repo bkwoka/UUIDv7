@@ -1,4 +1,23 @@
 # Changelog
+ 
+## [1.2.0] - 2026-03-13
+ 
+### Added
+- **API**: Added `getTimestamp()` to extract 48-bit Unix timestamp from v7 UUIDs.
+- **API**: Added `isValid()` for easy object state verification.
+- **Concurrency**: Added `setLockCallbacks()` for injecting custom RTOS mutexes (e.g., FreeRTOS/STM32).
+- **Testing**: Added `test_avr_compat` environment for native verification of `UUID7_OPTIMIZE_SIZE` builds.
+ 
+### Fixed
+- **Correctness**: `isV7()` and `isV4()` now inspect buffered version bits, providing accurate state after clock regression.
+- **Robustness**: `EasyUUID7::toCharArray()` now safely returns Nil UUID string ("00000000-...") on critical RNG failures.
+- **Platform (RP2040)**: Updated example 3 to use `rp2040.hwrand32()` for more reliable hardware entropy.
+- **Keywords**: Added missing methods to `keywords.txt` for Arduino IDE syntax highlighting.
+ 
+### Changed
+- **CI/CD**: Modernized GitHub Actions with Reusable Workflows and automated GitHub Releases.
+- **CI/CD**: Updated CI environment to Python 3.12 and Actions Cache v4.
+ 
 
 ## [1.1.1] - 2026-03-13
 

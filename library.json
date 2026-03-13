@@ -1,6 +1,6 @@
 {
   "name": "UUIDv7",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Ultra-light UUID v7 (RFC 9562) and v4 (RFC 4122) generator for embedded systems",
   "keywords": [
     "uuid",
