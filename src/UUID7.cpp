@@ -50,7 +50,13 @@ static inline void yield() {} // Fallback for non-Arduino bare-metal platforms
 // RAII Guard for Critical Sections
 class UUID7Guard {
 public:
-  UUID7Guard() {
+  UUID7Guard(void (*lock_cb)(void), void (*unlock_cb)(void)) 
+      : _lock_cb(lock_cb), _unlock_cb(unlock_cb) {
+    if (_lock_cb) {
+      // Use user-provided lock callback if available
+      _lock_cb();
+      return;
+    }
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
     portENTER_CRITICAL_SAFE(&_uuid_spinlock);
 #elif defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
@@ -60,12 +66,10 @@ public:
     if (_uuid_rp2040_spinlock) {
       _saved_irq = spin_lock_blocking(_uuid_rp2040_spinlock);
     } else {
-      noInterrupts(); // Global interrupt disable as fallback
+      noInterrupts();
     }
-#elif defined(UUID7_USE_FREERTOS_CRITICAL)
-    taskENTER_CRITICAL();
-#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) ||                       \
-    defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
+#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) || \
+      defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
     noInterrupts();
 #elif defined(PLATFORMIO_NATIVE)
     _uuid_mutex.lock();
@@ -73,6 +77,11 @@ public:
   }
 
   ~UUID7Guard() {
+    if (_unlock_cb) {
+      // Use user-provided unlock callback if available
+      _unlock_cb();
+      return;
+    }
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
     portEXIT_CRITICAL_SAFE(&_uuid_spinlock);
 #elif defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
@@ -83,21 +92,20 @@ public:
     } else {
       interrupts();
     }
-#elif defined(UUID7_USE_FREERTOS_CRITICAL)
-    taskEXIT_CRITICAL();
-#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) ||                       \
-    defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
+#elif defined(PLATFORMIO_ESP8266) || defined(ESP8266) || \
+      defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_STM32)
     interrupts();
 #elif defined(PLATFORMIO_NATIVE)
     _uuid_mutex.unlock();
 #endif
   }
 
-  // Disable copying
   UUID7Guard(const UUID7Guard &) = delete;
   UUID7Guard &operator=(const UUID7Guard &) = delete;
 
 private:
+  void (*_lock_cb)(void);
+  void (*_unlock_cb)(void);
 #if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
   uint8_t _sreg;
 #elif defined(ARDUINO_ARCH_RP2040) && defined(PICO_SDK_VERSION_MAJOR)
@@ -105,14 +113,6 @@ private:
 #endif
 };
 
-// --- CONFIGURATION MACROS ---
-#if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
-#ifndef UUID7_NO_ANALOG_ENTROPY
-#ifndef UUID7_ENTROPY_ANALOG_PIN
-#define UUID7_ENTROPY_ANALOG_PIN A0
-#endif
-#endif
-#endif
 
 // --- INTERNAL HELPERS ---
 #if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
@@ -139,15 +139,26 @@ static uint32_t uuid_xorshift32(uint32_t *state) {
 UUID7::UUID7(fill_random_fn rng, void *rng_ctx, now_ms_fn now,
              void *now_ctx) noexcept
     : _version(UUID_VERSION_7), _overflowPolicy(UUID_OVERFLOW_FAIL_FAST),
-      _rng(rng), _rng_ctx(rng_ctx), _now(now), _now_ctx(now_ctx),
+      _rng(rng), _rng_ctx(rng ? rng_ctx : this), _now(now), _now_ctx(now_ctx),
 #ifndef UUID7_OPTIMIZE_SIZE
       _last_ts_ms(0),
 #endif
       _load(nullptr), _save(nullptr), _storage_ctx(nullptr),
-      _save_interval_ms(10000), _last_saved_ts_ms(0), _entropy_mixer(0) {
+      _save_interval_ms(10000), _last_saved_ts_ms(0), _entropy_mixer(0),
+      _regressionThresholdMs(10000), _lock_cb(nullptr), _unlock_cb(nullptr) {
   memset(_b, 0, sizeof(_b));
 #ifdef UUID7_OPTIMIZE_SIZE
   memset(_last_ts_48, 0, 6);
+#endif
+
+#if defined(ARDUINO_ARCH_AVR) || defined(__AVR__)
+#if defined(A0)
+  _entropyAnalogPin = A0;
+#else
+  _entropyAnalogPin = 14; // Default to pin 14 (A0) for ATmega328P based boards (Uno/Nano)
+#endif
+#else
+  _entropyAnalogPin = -1;
 #endif
 }
 
@@ -263,19 +274,20 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
     entropy ^= uuid_mix32((uint32_t)((uintptr_t)default_fill_random));
     entropy ^= uuid_mix32(micros());
 
-#ifdef UUID7_ENTROPY_ANALOG_PIN
-    for (int i = 0; i < 4; i++) {
-      (void)analogRead(UUID7_ENTROPY_ANALOG_PIN);
+    int16_t analog_pin = ctx ? static_cast<UUID7*>(ctx)->_entropyAnalogPin : -1;
+    if (analog_pin >= 0) {
+      for (int i = 0; i < 4; i++) {
+        (void)analogRead(analog_pin);
+      }
+      for (int i = 0; i < 8; i++) {
+        unsigned long t_start = micros();
+        uint16_t val = analogRead(analog_pin);
+        unsigned long t_end = micros();
+        entropy = uuid_mix32(entropy ^ val);
+        entropy = uuid_mix32(entropy ^ (t_end - t_start));
+        delayMicroseconds(10 + (val & 0x0F));
+      }
     }
-    for (int i = 0; i < 8; i++) {
-      unsigned long t_start = micros();
-      uint16_t val = analogRead(UUID7_ENTROPY_ANALOG_PIN);
-      unsigned long t_end = micros();
-      entropy = uuid_mix32(entropy ^ val);
-      entropy = uuid_mix32(entropy ^ (t_end - t_start));
-      delayMicroseconds(10 + (val & 0x0F));
-    }
-#endif
 
     for (int i = 0; i < 4; i++) {
       unsigned long t1 = micros();
@@ -431,7 +443,7 @@ bool UUID7::generate() {
     bool overflow_occurred = false;
 
     {
-      UUID7Guard lock; // Ensure thread-safe access to monotonicity state
+      UUID7Guard lock(_lock_cb, _unlock_cb); // Ensure thread-safe access to monotonicity state
 
       if (_entropy_mixer != 0) {
         for (int i = 0; i < 8; i++) {
@@ -447,7 +459,7 @@ bool UUID7::generate() {
         uint64_t last_ts = 0;
         for (int i = 0; i < 6; i++)
           last_ts = (last_ts << 8) | _last_ts_48[i];
-        if (now_ms + UUID7_REGRESSION_THRESHOLD_MS < last_ts) {
+        if (now_ms + _regressionThresholdMs < last_ts) {
           major_regression = true;
         } else {
           // Minor clock regression or race condition: Clamp to the last seen
@@ -495,7 +507,7 @@ bool UUID7::generate() {
         memcpy(_b, _last_ts_48, 6);
       }
 #else
-      if (now_ms + UUID7_REGRESSION_THRESHOLD_MS < _last_ts_ms) {
+      if (now_ms + _regressionThresholdMs < _last_ts_ms) {
         // Major clock regression: Fall back to UUIDv4-like random generation.
         temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // v4 bits
         temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // variant bits
@@ -600,7 +612,7 @@ bool UUID7::toString(char *out, size_t buflen, bool uppercase,
   // Create a local thread-safe snapshot of the internal buffer.
   uint8_t local_b[16];
   {
-    UUID7Guard lock;
+    UUID7Guard lock(_lock_cb, _unlock_cb);
     memcpy(local_b, _b, 16);
   }
 
@@ -669,4 +681,19 @@ bool UUID7::parseFromString(const char *str, uint8_t out[16]) noexcept {
   }
 
   return true;
+}
+
+uint64_t UUID7::getTimestamp() const noexcept {
+  if (!isV7())
+    return 0;
+  uint64_t ts = 0;
+  uint8_t snap[6];
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    memcpy(snap, _b, 6);
+  }
+  for (int i = 0; i < 6; i++) {
+    ts = (ts << 8) | snap[i];
+  }
+  return ts;
 }

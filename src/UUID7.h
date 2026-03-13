@@ -5,9 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef UUID7_REGRESSION_THRESHOLD_MS
-#define UUID7_REGRESSION_THRESHOLD_MS 10000
-#endif
 
 #if !defined(ARDUINO)
 #include <ostream>
@@ -59,6 +56,28 @@ public:
   typedef void (*uuid_save_fn)(uint64_t timestamp, void *ctx);
   typedef uint64_t (*uuid_load_fn)(void *ctx);
 
+  // Thread Safety Callbacks
+  typedef void (*lock_fn_t)(void);
+
+  /**
+   * @brief Set custom threshold for clock regression (default: 10000 ms).
+   */
+  void setRegressionThreshold(uint32_t ms) { _regressionThresholdMs = ms; }
+
+  /**
+   * @brief Set analog pin for entropy generation on AVR (default: A0).
+   * Set to -1 to disable analog noise reading.
+   */
+  void setEntropyAnalogPin(int16_t pin) { _entropyAnalogPin = pin; }
+
+  /**
+   * @brief Inject custom thread lock/unlock callbacks (e.g., for FreeRTOS).
+   */
+  void setLockCallbacks(lock_fn_t lock_cb, lock_fn_t unlock_cb) {
+    _lock_cb = lock_cb;
+    _unlock_cb = unlock_cb;
+  }
+
   /**
    * @brief Initialize generator with optional custom RNG and Time sources.
    * @param rng Pointer to random fill function (nullptr for default).
@@ -88,7 +107,7 @@ public:
 
   void setRandomSource(fill_random_fn rng, void *ctx = nullptr) {
     _rng = rng;
-    _rng_ctx = ctx;
+    _rng_ctx = rng ? ctx : this;
   }
 
   /**
@@ -122,11 +141,20 @@ public:
    */
   uint8_t getVariant() const noexcept { return (_b[8] >> 6) & 0x03; }
 
-  /** @brief Check if the current UUID is Version 7. */
-  bool isV7() const noexcept { return _version == UUID_VERSION_7; }
+  /** @brief Check if the currently generated UUID is Version 7. */
+  bool isV7() const noexcept { return ((_b[6] >> 4) & 0x0F) == 7; }
 
-  /** @brief Check if the current UUID is Version 4. */
-  bool isV4() const noexcept { return _version == UUID_VERSION_4; }
+  /** @brief Check if the currently generated UUID is Version 4. */
+  bool isV4() const noexcept { return ((_b[6] >> 4) & 0x0F) == 4; }
+
+  /** @brief Check if the object contains a valid, generated UUID. */
+  bool isValid() const noexcept { return isV7() || isV4(); }
+
+  /**
+   * @brief Extract the 48-bit Unix timestamp (milliseconds) from the UUID.
+   * @return Timestamp in milliseconds, or 0 if the UUID is not Version 7.
+   */
+  uint64_t getTimestamp() const noexcept;
 
   // --- INSTANCE PARSER ---
 
@@ -293,6 +321,12 @@ private:
   uint64_t _last_saved_ts_ms;
 
   uint64_t _entropy_mixer;
+
+  // Runtime Configuration
+  uint32_t _regressionThresholdMs;
+  int16_t _entropyAnalogPin;
+  lock_fn_t _lock_cb;
+  lock_fn_t _unlock_cb;
 
   /**
    * @brief Internal helper to increment the random part (74 bits) for
