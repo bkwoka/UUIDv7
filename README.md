@@ -149,6 +149,8 @@ Custom threshold:
 uuid.setRegressionThreshold(10000);
 ```
 
+💡 Arduino millis() 49-day wraparound: The default time source automatically handles the 32-bit millis() overflow (which occurs every ~49.7 days) by extending it to 64-bit in software. Note: This requires generate() to be called at least once every 49 days. If your device spends months in Deep Sleep, the hardware timer will lose track of time. In such cases, inject a real-time clock (RTC) or NTP provider via setTimeProvider().
+
 ### 3. Persistence (Safety Jump)
 To prevent generating duplicate UUIDs after a reboot (if the clock isn't perfectly synced), save the state to non-volatile memory:
 ```cpp
@@ -161,12 +163,12 @@ uuid.load(); // Applies "Safety Jump" on boot
 ## Easy Mode vs Pro Mode
 
 ### `UUID7` (Pro Mode - Default)
-*   **RAM:** ~20 bytes
+*   **RAM:** ~68 B (ESP32/RP2040/STM32) / ~88 B (AVR) — see Performance table.
 *   **Behavior:** Zero-allocation, returns `bool` on success/fail.
 *   **Use case:** High-performance logging, tiny AVR devices.
 
 ### `EasyUUID7` (Wrapper)
-*   **RAM:** ~60 bytes (Internal buffer)
+*   **RAM:** ~105 B (ESP32/RP2040/STM32) / ~125 B (AVR) — base class + 37 B string cache.
 *   **Behavior:** Returns `String`, auto-retries on collision.
 *   **Use case:** Prototyping, ESP32 web servers.
 

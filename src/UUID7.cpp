@@ -202,9 +202,8 @@ void UUID7::load() {
 }
 
 void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
-  (void)ctx;
-
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
+  (void)ctx;
   // ESP32 Hardware RNG
   size_t i = 0;
   while (i + 4 <= len) {
@@ -221,10 +220,12 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
   }
 
 #elif defined(PLATFORMIO_ESP8266) || defined(ESP8266)
+  (void)ctx;
   // ESP8266 Hardware RNG (WDEV)
   os_get_random((unsigned char *)dest, len);
 
 #elif defined(ARDUINO_ARCH_RP2040)
+  (void)ctx;
   // RP2040 Hardware ROSC (Ring Oscillator)
   // Supported on both Earle Philhower and MBED cores.
   // Provides high-entropy jitter but requires multiple clock cycles per bit.
@@ -237,6 +238,7 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
   }
 
 #elif defined(ARDUINO_ARCH_STM32)
+  (void)ctx;
   /*
    * STM32 Entropy Strategy:
    * Combines multiple hardware/temporal sources to maximize uniqueness
@@ -317,6 +319,7 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
   }
 
 #elif defined(PLATFORMIO_NATIVE)
+  (void)ctx;
   static std::random_device rd;
   static std::mt19937_64 eng(rd());
   static std::uniform_int_distribution<uint8_t> dist(0, 255);
@@ -324,6 +327,7 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
     dest[k] = dist(eng);
   }
 #else
+  (void)ctx;
 #ifdef ARDUINO
 #warning                                                                       \
     "UUID7: Using Arduino random() fallback. Ensure it is seeded with randomSeed() for uniqueness!"
@@ -350,8 +354,23 @@ uint64_t UUID7::default_now_ms(void *ctx) noexcept {
   return (uint64_t)duration_cast<milliseconds>(
              system_clock::now().time_since_epoch())
       .count();
+#elif defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
+  // ESP32 provides a native 64-bit microsecond timer. Overflow occurs in ~292,000 years.
+  return (uint64_t)(esp_timer_get_time() / 1000ULL);
 #elif defined(ARDUINO)
-  return (uint64_t)millis();
+  // Fallback for AVR, ESP8266, STM32, and RP2040.
+  // Standard millis() returns a uint32_t which overflows after approximately 49.7 days.
+  // A static accumulator is used to extend the value to 64 bits.
+  static uint32_t s_prev_ms = 0;
+  static uint64_t s_epoch_offset = 0;
+  
+  uint32_t now = millis();
+  if (now < s_prev_ms) {
+    s_epoch_offset += 0x100000000ULL; // Increment epoch offset by 2^32 milliseconds
+  }
+  s_prev_ms = now;
+  
+  return s_epoch_offset + now;
 #else
   return 0;
 #endif
