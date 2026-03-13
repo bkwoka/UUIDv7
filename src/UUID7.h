@@ -14,6 +14,14 @@
 #endif
 
 #include "UUID7Types.h"
+
+// Auto-enable optimization for AVR architecture to save Flash/Cycles.
+// MUST be defined before including TimestampState.h
+#if (defined(ARDUINO_ARCH_AVR) || defined(__AVR__)) &&                         \
+    !defined(UUID7_NO_OPTIMIZE)
+#define UUID7_OPTIMIZE_SIZE
+#endif
+
 #include "UUID7Persistence.h"
 #include "TimestampState.h"
 
@@ -27,11 +35,6 @@
 #define UUID7_DEPRECATED(msg)
 #endif
 
-// Auto-enable optimization for AVR architecture to save Flash/Cycles
-#if (defined(ARDUINO_ARCH_AVR) || defined(__AVR__)) &&                         \
-    !defined(UUID7_NO_OPTIMIZE)
-#define UUID7_OPTIMIZE_SIZE
-#endif
 
 #if defined(ARDUINO)
 #include <Arduino.h>
@@ -46,11 +49,9 @@ public:
   typedef uuid7::fill_random_fn fill_random_fn;
   typedef uuid7::now_ms_fn now_ms_fn;
 
-  // State Persistence Callbacks
   typedef uuid7::uuid_save_fn uuid_save_fn;
   typedef uuid7::uuid_load_fn uuid_load_fn;
 
-  // Thread Safety Callbacks
   typedef uuid7::lock_fn_t lock_fn_t;
 
   /**
@@ -64,10 +65,6 @@ public:
    */
   void setEntropyAnalogPin(int16_t pin) { _entropyAnalogPin = pin; }
 
-  /**
-   * @brief Internal helper for entropy fallback to access the private pin.
-   */
-  int16_t setEntropyAnalogPinFallback() const { return _entropyAnalogPin; }
 
   /**
    * @brief Inject custom thread lock/unlock callbacks (e.g., for FreeRTOS).
@@ -126,8 +123,6 @@ public:
    */
   void mixEntropy(uint64_t seed) noexcept { _entropy_mixer = seed; }
 
-  // --- GETTERS ---
-
   /**
    * @brief Get current configured UUID version.
    * @return Current version (e.g., UUID_VERSION_7).
@@ -161,8 +156,6 @@ public:
    * @return Timestamp in milliseconds, or 0 if the UUID is not Version 7.
    */
   uint64_t getTimestamp() const noexcept;
-
-  // --- INSTANCE PARSER ---
 
   /**
    * @brief Parse a 36-character UUID string directly into this object.
@@ -254,7 +247,6 @@ public:
    */
   static bool parseFromString(const char *str36, uint8_t out[16]) noexcept;
 
-  // --- Default Platform Implementations ---
   static void default_fill_random(uint8_t *dest, size_t len,
                                   void *ctx) noexcept;
   static uint64_t default_now_ms(void *ctx) noexcept;
@@ -266,8 +258,6 @@ public:
     return p.print(buf);
   }
 #endif
-
-  // --- Comparison and Logic Operators ---
 
   /** @brief Check if two UUIDs are identical. */
   bool operator==(const UUID7 &other) const {
@@ -312,15 +302,12 @@ private:
   now_ms_fn _now;
   void *_now_ctx;
 
-  // State for Monotonicity
   TimestampState _tsState;
 
-  // Persistence State
   UUID7PersistenceState _persistence;
 
   uint64_t _entropy_mixer;
 
-  // Runtime Configuration
   uint32_t _regressionThresholdMs;
   int16_t _entropyAnalogPin;
   lock_fn_t _lock_cb;

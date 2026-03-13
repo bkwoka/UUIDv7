@@ -27,14 +27,13 @@ static inline void yield() {}
 #endif
 #endif
 
-// --- CLASS IMPLEMENTATION ---
+
 
 UUID7::UUID7(fill_random_fn rng, void *rng_ctx, now_ms_fn now,
              void *now_ctx) noexcept
     : _version(UUID_VERSION_7), _overflowPolicy(UUID_OVERFLOW_FAIL_FAST),
       _rng(rng),
-      // _rng_ctx defaults to 'this' so the static default_fill_random can
-      // access instance variables (like _entropyAnalogPin) via a void* cast.
+      // Provide instance context to static RNG function for accessing fallback entropy parameters
       _rng_ctx(rng ? rng_ctx : this), _now(now), _now_ctx(now_ctx),
       _entropy_mixer(0),
       _regressionThresholdMs(10000), _lock_cb(nullptr), _unlock_cb(nullptr) {
@@ -77,25 +76,24 @@ void UUID7::load() {
 
 
 bool UUID7::_incrementRandom() noexcept {
-  // Increment 74-bit random field (bytes 15 down to 6).
-  // Respects version (v7) and variant (RFC) bit masking.
+  // Continuously increment the random section, respecting variant/version boundaries.
   for (int i = 15; i >= 9; i--) {
     if (++_b[i] != 0)
       return true;
   }
 
-  // Increment byte 8 while preserving variant bits (top 2 bits)
+  // Increment byte 8 (variant byte), preserving RFC variant flags (10x)
   uint8_t b8 = _b[8] & 0x3F;
   b8++;
   _b[8] = (_b[8] & 0xC0) | (b8 & 0x3F);
   if ((b8 & 0x40) == 0)
     return true; // No overflow if carry didn't reach bit 6
 
-  // Carry to byte 7
+
   if (++_b[7] != 0)
     return true;
 
-  // Increment byte 6 while preserving version bits (top 4 bits)
+  // Increment byte 6 (version byte), preserving UUID version flags (0111)
   uint8_t b6 = _b[6] & 0x0F;
   b6++;
   _b[6] = (_b[6] & 0xF0) | (b6 & 0x0F);
@@ -134,9 +132,8 @@ bool UUID7::generate() {
     if (sum == 0)
       return false;
 
-    // Fetch current time outside the critical section to prevent potential
-    // deadlocks with time providers that use blocking I/O (e.g., I2C RTC or NTP
-    // sync).
+    // Retrieve current timestamp before acquiring the lock to avoid deadlocks 
+    // strictly with multi-threaded/blocking time providers.
     uint64_t now_ms = now_func(_now_ctx);
     if (now_ms == 0)
       return false;
@@ -147,7 +144,7 @@ bool UUID7::generate() {
     bool overflow_occurred = false;
 
     {
-      // Ensure thread-safe access to monotonicity state
+      // Enforce exclusivity with RAII guard
       UUID7Guard lock(_lock_cb, _unlock_cb);
 
       if (_entropy_mixer != 0) {
@@ -163,14 +160,14 @@ bool UUID7::generate() {
         if (now_ms + _regressionThresholdMs < _tsState.get()) {
           major_regression = true;
         } else {
-          // Minor clock regression: Clamp to the last seen timestamp
+          // Minor regression or race condition: clamp strictly to the last monotonic state
           now_ms = _tsState.get();
-          cmp = 0; // Force entry into same-millisecond logic
+          cmp = 0; // Evaluate as intra-millisecond progression
         }
       }
 
       if (major_regression) {
-        // Major clock regression: Fall back to UUIDv4-like random generation
+        // Major regression detected: initiate RFC9562 fallback (UUIDv4) to guarantee collision resistance
         temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // v4 bits
         temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // variant bits
         memcpy(_b, temp_rand, 16);
@@ -230,8 +227,7 @@ bool UUID7::generate() {
         return false;
       } else {
 #if defined(ARDUINO)
-        delay(
-            1); // On RTOS platforms (ESP32/RP2040) this yields to the scheduler
+        delay(1); // RTOS context yielding to prevent thread starvation during constraint resolution
 #else
         yield();
 #endif

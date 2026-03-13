@@ -4,6 +4,7 @@
 
 #include "UUID7.h"
 #include "UUID7Prng.h"
+#include <string.h>
 
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
 #include "esp_system.h"
@@ -97,7 +98,7 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
     entropy ^= uuid_mix32(micros());
 
     int16_t analog_pin =
-        ctx ? static_cast<UUID7 *>(ctx)->setEntropyAnalogPinFallback() : -1;
+        ctx ? static_cast<UUID7 *>(ctx)->_entropyAnalogPin : -1;
     if (analog_pin >= 0) {
       for (int i = 0; i < 4; i++) {
         (void)analogRead(analog_pin);

@@ -2,7 +2,7 @@
 
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra -Isrc -DPLATFORMIO_NATIVE -DSTANDALONE_TEST
-SRC = src/UUID7.cpp
+SRC = src/UUID7.cpp src/UUID7Rng.cpp src/UUID7Clock.cpp
 TEST_SRC = test/test_uuid7/test_uuid7.cpp
 TARGET = test_runner
 
