@@ -22,17 +22,19 @@ inline void yield() {}
 
 /**
  * @class EasyUUID7
- * @brief High-level wrapper for UUIDv7 with automatic string caching and retry
- * logic.
+ * @brief High-level wrapper for UUIDv7 with automatic string caching and retry logic.
+ * @warning Do not use polymorphically via UUID7* pointers or UUID7& references,
+ * as the base generate() method is not virtual (to save RAM/Flash).
  */
 class EasyUUID7 final : public UUID7 {
 private:
   char _cacheBuffer[37]; // String representation cache
   uint16_t _max_retries; // Maximum generation attempts before failure
+  bool _initialized;     // Tracks if a valid UUID is currently cached
 
 public:
   explicit EasyUUID7(uint16_t max_retries = 100)
-      : UUID7(), _max_retries(max_retries) {
+      : UUID7(), _max_retries(max_retries), _initialized(false) {
     memset(_cacheBuffer, 0, sizeof(_cacheBuffer));
   }
 
@@ -49,14 +51,14 @@ public:
     // Spin-wait until successful or limit reached.
     while (!UUID7::generate()) {
       if (++tries >= _max_retries) {
-        return false; // Prevent infinite loop in case of recurrent hardware
-                      // failure
+        return false; // Prevent infinite loop in case of recurrent hardware failure
       }
       yield();
     }
 
     // Update cache immediately
     UUID7::toString(_cacheBuffer, sizeof(_cacheBuffer));
+    _initialized = true;
     return true;
   }
 
@@ -69,6 +71,7 @@ public:
     bool ok = UUID7::parse(str36);
     if (ok) {
       UUID7::toString(_cacheBuffer, sizeof(_cacheBuffer));
+      _initialized = true;
     }
     return ok;
   }
@@ -80,6 +83,7 @@ public:
   void fromBytes(const uint8_t bytes[16]) noexcept {
     UUID7::fromBytes(bytes);
     UUID7::toString(_cacheBuffer, sizeof(_cacheBuffer));
+    _initialized = true;
   }
 
   /**
@@ -87,12 +91,14 @@ public:
    * Compatible with legacy C-style APIs.
    */
   char *toCharArray() {
-    // Lazy generation if buffer is empty
-    if (_cacheBuffer[0] == 0) {
+    // Lazy generation if not yet initialized
+    if (!_initialized) {
       if (!generate()) {
-        // Fallback to Nil UUID on critical hardware failure to prevent
-        // undefined behavior
+        // Fallback to Nil UUID on critical hardware failure.
+        // We write to the instance buffer (thread-safe, no UB), but leave
+        // _initialized = false so subsequent calls can retry generation.
         strcpy(_cacheBuffer, "00000000-0000-0000-0000-000000000000");
+        return _cacheBuffer;
       }
     }
     return _cacheBuffer;

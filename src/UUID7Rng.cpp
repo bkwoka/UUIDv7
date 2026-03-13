@@ -88,6 +88,10 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
 #warning                                                                       \
     "UUID7: Using fallback entropy (ADC noise + Clock Jitter). Not cryptographically secure."
 
+  // Shared PRNG state across all UUID7 instances on AVR.
+  // This is a deliberate design choice: it ensures that multiple instances
+  // draw from a single, continuous entropy pool, preventing identical UUID
+  // sequences if multiple objects are instantiated simultaneously.
   static uint32_t rng_state = 0;
 
   if (rng_state == 0) {
