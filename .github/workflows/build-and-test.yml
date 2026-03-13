@@ -45,9 +45,16 @@ jobs:
       - name: Run Native Tests with Coverage
         run: platformio test -e test
 
+      - name: Run AVR-compat Tests (UUID7_OPTIMIZE_SIZE)
+        run: platformio test -e test_avr_compat
+
       - name: Generate Coverage Report
         run: |
-          lcov --directory .pio/build/test --capture --output-file coverage.info
+          lcov --directory .pio/build/test --capture --output-file coverage_main.info
+          lcov --directory .pio/build/test_avr_compat --capture --output-file coverage_avr.info
+          lcov --add-tracefile coverage_main.info \
+               --add-tracefile coverage_avr.info \
+               --output-file coverage.info
           lcov --remove coverage.info '*/.pio/*' '*/test/*' '/usr/*' --output-file coverage.info
           lcov --list coverage.info
 

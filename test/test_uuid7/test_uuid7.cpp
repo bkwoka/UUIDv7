@@ -651,6 +651,86 @@ void test_initialized_after_load() {
     TEST_ASSERT_EQUAL_UINT8(0xAF, b[15]);
 }
 
+// --- TESTS FOR PREVIOUSLY UNCOVERED API ---
+
+/**
+ * @brief Verifies getTimestamp() returns correct 48-bit value for v7
+ * and returns 0 for v4 (as documented).
+ */
+void test_get_timestamp() {
+    mock_time_val = 0x0123456789ABULL;
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.getTimestamp() == 0x0123456789ABULL);
+
+    // v4 must return 0
+    g.setVersion(UUID_VERSION_4);
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.getTimestamp() == 0ULL);
+}
+
+/**
+ * @brief Verifies isValid() correctly reflects object state:
+ * false before generation, true after v7, true after v4,
+ * true after fromBytes() with valid UUID bytes, false for zero buffer.
+ */
+void test_is_valid() {
+    // 1. Fresh object — not yet generated
+    UUID7 g;
+    TEST_ASSERT_FALSE(g.isValid());
+
+    // 2. After v7 generation
+    g.generate();
+    TEST_ASSERT_TRUE(g.isValid());
+
+    // 3. After v4 generation
+    g.setVersion(UUID_VERSION_4);
+    g.generate();
+    TEST_ASSERT_TRUE(g.isValid());
+
+    // 4. fromBytes() with valid v7 bytes
+    uint8_t v7_bytes[16] = {
+        0x01, 0x8D, 0x96, 0x0E, 0x2B, 0x77, 0x7F, 0x8D,
+        0x9C, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0
+    };
+    g.fromBytes(v7_bytes);
+    TEST_ASSERT_TRUE(g.isValid());
+
+    // 5. fromBytes() with all-zero buffer
+    uint8_t zero_bytes[16] = {0};
+    g.fromBytes(zero_bytes);
+    TEST_ASSERT_FALSE(g.isValid());
+}
+
+/**
+ * @brief Verifies that user-provided lock/unlock callbacks are actually
+ * invoked during generate() and that lock/unlock calls are balanced
+ * (no leaked locks).
+ */
+static int s_lock_count   = 0;
+static int s_unlock_count = 0;
+static void counting_lock()   { s_lock_count++;   }
+static void counting_unlock() { s_unlock_count++; }
+
+void test_lock_callbacks() {
+    s_lock_count = s_unlock_count = 0;
+    mock_time_val = 99000;
+
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
+    g.setLockCallbacks(counting_lock, counting_unlock);
+
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(s_lock_count > 0);
+    // Every lock must be paired with an unlock — no leaked critical sections
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+
+    // Second generate (same-ms path) must also balance
+    int prev = s_lock_count;
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(s_lock_count > prev);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+}
+
 // --- TEST RUNNER ---
 
 void run_tests() {
@@ -689,6 +769,10 @@ void run_tests() {
     RUN_TEST(test_getters);
     RUN_TEST(test_parse_instance);
     RUN_TEST(test_initialized_after_load);
+
+    RUN_TEST(test_get_timestamp);
+    RUN_TEST(test_is_valid);
+    RUN_TEST(test_lock_callbacks);
 
     UNITY_END();
 }
