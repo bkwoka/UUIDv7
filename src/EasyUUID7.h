@@ -92,7 +92,7 @@ public:
      * @param uppercase If true, uses UPPERCASE hex.
      * @param dashes If false, omits hyphens.
      */
-    String toString(bool uppercase = false, bool dashes = true) {
+    String toString(bool uppercase = false, bool dashes = true) const {
         char buf[37];
         UUID7::toString(buf, sizeof(buf), uppercase, dashes);
         return String(buf);
@@ -101,13 +101,23 @@ public:
     // --- CONVENIENCE OPERATORS ---
 
     // Allows: String s = uuid;
-    operator String() {
+    operator String() const {
         return toString();
     }
     
     // Allows: const char* s = uuid;
+    // Note: NON-CONST to allow lazy generation if the buffer is empty.
     operator const char*() {
         return toCharArray();
+    }
+    
+    /**
+     * @brief Parse a 36-character UUID from an Arduino String.
+     * @param str Source String.
+     * @return true if string is valid and parsed, false otherwise.
+     */
+    bool parse(const String& str) noexcept {
+        return parse(str.c_str());
     }
     
     // Allows: Serial.println(uuid) via Printable interface (inherited)

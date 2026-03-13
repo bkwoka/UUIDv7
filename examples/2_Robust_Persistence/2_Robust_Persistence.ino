@@ -69,10 +69,15 @@ void save_to_eeprom(uint64_t ts, void* ctx) {
     bool okB = (calcCRC32((uint8_t*)&sB.timestamp, 8) == sB.crc);
 
     // Overwrite strategy: Overwrite corrupt slot, or the older one
-    int target = SLOT_A_ADDR;
-    if (!okA) target = SLOT_A_ADDR;
-    else if (!okB) target = SLOT_B_ADDR;
-    else target = (sA.timestamp < sB.timestamp) ? SLOT_A_ADDR : SLOT_B_ADDR;
+    int target;
+    if (!okA) {
+        target = SLOT_A_ADDR; // Slot A is corrupt, repair it
+    } else if (!okB) {
+        target = SLOT_B_ADDR; // Slot B is corrupt, repair it
+    } else {
+        // Both are OK, overwrite the older one (Wear Leveling / Ping-Pong)
+        target = (sA.timestamp < sB.timestamp) ? SLOT_A_ADDR : SLOT_B_ADDR;
+    }
 
     StorageSlot newS;
     newS.timestamp = ts;
