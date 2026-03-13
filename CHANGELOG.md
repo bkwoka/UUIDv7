@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0] - 2026-03-13
+
+### Changed (Under-the-hood)
+- **Architecture**: Massive internal refactoring. Eliminated the "God Object" anti-pattern by splitting `UUID7.cpp` into domain-specific modules (`UUID7Codec`, `TimestampState`, `UUID7Persistence`).
+- **HAL Separation**: Hardware-specific RNG and Clock implementations are now strictly isolated in `UUID7Rng.cpp` and `UUID7Clock.cpp`, improving maintainability and cross-platform compilation safety.
+- **Optimization**: Unified the monotonicity logic for both 8-bit (AVR) and 32/64-bit architectures, eliminating duplicated code and complex preprocessor macros.
+- **Compatibility**: 100% backward compatible with 1.2.x public API. Zero behavioral changes.
+
 ## [1.2.1] - 2026-03-13
 
 ### Added
