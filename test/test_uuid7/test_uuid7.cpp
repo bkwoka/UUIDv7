@@ -474,10 +474,27 @@ void test_ostream_operator() {
 #endif
 
 void test_regression_threshold() {
-    UUID7 g;
+    mock_time_val = 20000;
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
     g.setRegressionThreshold(5000);
-    // Verify that the API functions correctly without causing a crash.
-    TEST_ASSERT_TRUE(true);
+    
+    // 1. Base generation
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.isV7());
+
+    // 2. Minor regression (4999ms) -> Should clamp to 20000ms and stay v7
+    mock_time_val = 15001;
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.isV7());
+    
+    uint64_t ts = 0;
+    for(int i=0; i<6; i++) ts = (ts << 8) | g.data()[i];
+    TEST_ASSERT_TRUE(ts == 20000); // Verify clamping
+
+    // 3. Major regression (5001ms) -> Should fallback to v4
+    mock_time_val = 14999;
+    TEST_ASSERT_TRUE(g.generate());
+    TEST_ASSERT_TRUE(g.isV4());
 }
 
 void test_from_bytes_and_formatting() {

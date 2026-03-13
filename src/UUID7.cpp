@@ -139,7 +139,10 @@ static uint32_t uuid_xorshift32(uint32_t *state) {
 UUID7::UUID7(fill_random_fn rng, void *rng_ctx, now_ms_fn now,
              void *now_ctx) noexcept
     : _version(UUID_VERSION_7), _overflowPolicy(UUID_OVERFLOW_FAIL_FAST),
-      _rng(rng), _rng_ctx(rng ? rng_ctx : this), _now(now), _now_ctx(now_ctx),
+      _rng(rng),
+      // _rng_ctx defaults to 'this' so the static default_fill_random can access
+      // instance variables (like _entropyAnalogPin) via a void* cast.
+      _rng_ctx(rng ? rng_ctx : this), _now(now), _now_ctx(now_ctx),
 #ifndef UUID7_OPTIMIZE_SIZE
       _last_ts_ms(0),
 #endif

@@ -34,6 +34,11 @@ isV4	KEYWORD2
 printTo	KEYWORD2
 toCharArray	KEYWORD2
 fromBytes	KEYWORD2
+setRegressionThreshold	KEYWORD2
+setEntropyAnalogPin	KEYWORD2
+setLockCallbacks	KEYWORD2
+isValid	KEYWORD2
+getTimestamp	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

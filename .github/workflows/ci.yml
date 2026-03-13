@@ -78,10 +78,16 @@ jobs:
       - name: Build for RP2040 (Pico)
         run: |
           platformio ci --lib="." --project-option="platform=https://github.com/maxgerhardt/platform-raspberrypi.git" --project-option="board_build.core=earlephilhower" --board=pico examples/1_Hello_UUID/1_Hello_UUID.ino
+          platformio ci --lib="." --project-option="platform=https://github.com/maxgerhardt/platform-raspberrypi.git" --project-option="board_build.core=earlephilhower" --board=pico examples/2_Robust_Persistence/2_Robust_Persistence.ino
+          platformio ci --lib="." --project-option="platform=https://github.com/maxgerhardt/platform-raspberrypi.git" --project-option="board_build.core=earlephilhower" --board=pico examples/3_Custom_Entropy_Strategy/3_Custom_Entropy_Strategy.ino
+          platformio ci --lib="." --project-option="platform=https://github.com/maxgerhardt/platform-raspberrypi.git" --project-option="board_build.core=earlephilhower" --board=pico examples/4_High_Performance_Benchmark/4_High_Performance_Benchmark.ino
 
       - name: Build for STM32 (BluePill)
         run: |
           platformio ci --lib="." --board=bluepill_f103c8 examples/1_Hello_UUID/1_Hello_UUID.ino
+          platformio ci --lib="." --board=bluepill_f103c8 examples/2_Robust_Persistence/2_Robust_Persistence.ino
+          platformio ci --lib="." --board=bluepill_f103c8 examples/3_Custom_Entropy_Strategy/3_Custom_Entropy_Strategy.ino
+          platformio ci --lib="." --board=bluepill_f103c8 examples/4_High_Performance_Benchmark/4_High_Performance_Benchmark.ino
 
       - name: Package Release ZIP
         if: startsWith(github.ref, 'refs/tags/')

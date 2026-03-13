@@ -221,6 +221,9 @@ int main() {
 *   `void setRandomSource(fill_random_fn rng, void* ctx)`: Inject custom RNG.
 *   `void mixEntropy(uint64_t seed)`: Inject additional entropy (e.g., MAC address) to prevent collisions across fleets without NTP.
 *   `void setOverflowPolicy(UUIDOverflowPolicy policy)`: Set behavior for sub-millisecond overflow (`FAIL_FAST` or `WAIT`).
+*   `void setRegressionThreshold(uint32_t ms)`: Set custom threshold for clock regression.
+*   `void setEntropyAnalogPin(int16_t pin)`: Set analog pin for AVR entropy generation.
+*   `void setLockCallbacks(lock_fn_t lock, lock_fn_t unlock)`: Inject custom thread locks (e.g., FreeRTOS).
 
 ### Parsing & Inspection
 *   `bool parse(const char* str36)`: Parse a string directly into the instance.
@@ -229,6 +232,8 @@ int main() {
 *   `UUIDVersion getVersion()`: Returns the version of the current UUID.
 *   `uint8_t getVariant()`: Returns the variant (should be 2 for RFC 4122).
 *   `bool isV7() / bool isV4()`: Quick version checks.
+*   `bool isValid() const`: Check if the object contains a valid, generated UUID.
+*   `uint64_t getTimestamp() const`: Extract the 48-bit timestamp (returns 0 if not v7).
 
 ### Relational Operators
 *   `==`, `!=`, `<`, `>`, `<=`, `>=`: Fully supported for K-Sortable database indexing.
