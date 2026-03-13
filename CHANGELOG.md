@@ -8,6 +8,12 @@
 - **Optimization**: Unified the monotonicity logic for both 8-bit (AVR) and 32/64-bit architectures, eliminating duplicated code and complex preprocessor macros.
 - **Compatibility**: 100% backward compatible with 1.2.x public API. Zero behavioral changes.
 
+### Fixed
+- **API**: Added `[[nodiscard]]` attribute to `generate()` to enforce error handling of RNG/Clock failures.
+- **Concurrency**: Fixed potential deadlock/UB in `setLockCallbacks()` by enforcing that both lock and unlock callbacks must be provided together.
+- **Robustness**: Fixed a bug in `EasyUUID7::toCharArray()` where a transient RNG failure would permanently brick the instance cache. It now safely recovers on subsequent calls.
+- **Docs**: Added explicit warnings about object slicing/polymorphism and the semantics of copying `UUID7` instances.
+
 ## [1.2.1] - 2026-03-13
 
 ### Added

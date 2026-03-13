@@ -35,11 +35,25 @@
 #define UUID7_DEPRECATED(msg)
 #endif
 
+#if defined(__has_cpp_attribute) && __has_cpp_attribute(nodiscard)
+#define UUID7_NODISCARD [[nodiscard]]
+#elif defined(__GNUC__)
+#define UUID7_NODISCARD __attribute__((warn_unused_result))
+#else
+#define UUID7_NODISCARD
+#endif
+
 
 #if defined(ARDUINO)
 #include <Arduino.h>
 #endif
 
+/**
+ * @warning Copying a UUID7 object copies its monotonicity state (_tsState).
+ * Two copies driven independently will produce UUIDs that may compare
+ * less-than each other — violating K-sortability. Use copies only as
+ * read-only snapshots (comparison, serialization), never as separate generators.
+ */
 #if defined(ARDUINO)
 class UUID7 : public Printable {
 #else
@@ -70,8 +84,10 @@ public:
    * @brief Inject custom thread lock/unlock callbacks (e.g., for FreeRTOS).
    */
   void setLockCallbacks(lock_fn_t lock_cb, lock_fn_t unlock_cb) {
-    _lock_cb = lock_cb;
-    _unlock_cb = unlock_cb;
+    // Both callbacks must be provided, or neither. Prevents UB/Deadlocks.
+    bool both = (lock_cb != nullptr) && (unlock_cb != nullptr);
+    _lock_cb = both ? lock_cb : nullptr;
+    _unlock_cb = both ? unlock_cb : nullptr;
   }
 
   /**
@@ -158,8 +174,9 @@ public:
   uint64_t getTimestamp() const noexcept;
 
   /**
-   * @brief Parse a 36-character UUID string directly into this object.
-   * @param str36 Source string.
+   * @brief Parse a UUID string directly into this object.
+   * Supports both 36-character (dashed) and 32-character (undashed) formats.
+   * @param str36 Source string (36 or 32 chars).
    * @return true if string is valid and parsed, false otherwise.
    */
   bool parse(const char *str36) noexcept { return parseFromString(str36, _b); }
@@ -210,7 +227,7 @@ public:
    *
    * @return true if successful, false if time source is invalid (returns 0).
    */
-  bool generate();
+  UUID7_NODISCARD bool generate();
 
   /**
    * @brief Import 16 raw bytes into the UUID object.
@@ -240,8 +257,9 @@ public:
   const uint8_t *data() const noexcept { return _b; }
 
   /**
-   * @brief Parse a 36-character UUID string into 16-byte binary format.
-   * @param str36 Source string.
+   * @brief Parse a UUID string into 16-byte binary format.
+   * Supports both 36-character (dashed) and 32-character (undashed) formats.
+   * @param str36 Source string (36 or 32 chars).
    * @param out Destination 16-byte array.
    * @return true if string is valid and parsed, false otherwise.
    */

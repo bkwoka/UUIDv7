@@ -94,12 +94,12 @@ void test_persistence() {
         #endif
     }
     TEST_ASSERT_TRUE(generated_ts == 6000); 
-    TEST_ASSERT_EQUAL_UINT8(0, save_call_count);
+    TEST_ASSERT_EQUAL_INT(0, save_call_count);
     
     // Lazy Write check
     mock_time_val = 6001;
     g.generate();
-    TEST_ASSERT_EQUAL_UINT8(1, save_call_count);
+    TEST_ASSERT_EQUAL_INT(1, save_call_count);
     TEST_ASSERT_TRUE(mock_nvs_storage == 6001);
 }
 
