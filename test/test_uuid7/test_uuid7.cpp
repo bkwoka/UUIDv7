@@ -169,6 +169,7 @@ static uint64_t mock_now_ms_overflow(void*) {
 
 static void overflow_rng(uint8_t* dest, size_t len, void*) {
     memset(dest, 0xFF, len);
+    if (len > 0) dest[0] = 0xFE; // Avoid hardware fault detection (all 0xFF)
 }
 
 void test_overflow_policy() {

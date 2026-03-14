@@ -109,11 +109,14 @@ bool UUID7::generate() {
   if (_version == UUID_VERSION_4) {
     uint8_t temp_rand[16];
     rng(temp_rand, sizeof(temp_rand), _rng_ctx);
-    uint8_t sum = 0;
-    for (size_t i = 0; i < sizeof(temp_rand); i++)
-      sum |= temp_rand[i];
-    if (sum == 0)
-      return false;
+    uint8_t sum_or = 0;
+    uint8_t sum_and = 0xFF;
+    for (size_t i = 0; i < sizeof(temp_rand); i++) {
+      sum_or |= temp_rand[i];
+      sum_and &= temp_rand[i];
+    }
+    if (sum_or == 0 || sum_and == 0xFF)
+      return false; // Fail-fast for hardware faults (all 0x00 or all 0xFF)
 
     // Unconditionally mix entropy (XOR with 0 is a no-op, avoids branching)
     for (int i = 0; i < 8; i++) {
@@ -135,11 +138,14 @@ bool UUID7::generate() {
     uint8_t temp_rand[16];
     rng(temp_rand, sizeof(temp_rand), _rng_ctx);
 
-    uint8_t sum = 0;
-    for (size_t i = 0; i < sizeof(temp_rand); i++)
-      sum |= temp_rand[i];
-    if (sum == 0)
-      return false;
+    uint8_t sum_or = 0;
+    uint8_t sum_and = 0xFF;
+    for (size_t i = 0; i < sizeof(temp_rand); i++) {
+      sum_or |= temp_rand[i];
+      sum_and &= temp_rand[i];
+    }
+    if (sum_or == 0 || sum_and == 0xFF)
+      return false; // Fail-fast for hardware faults (all 0x00 or all 0xFF)
 
     // Retrieve current timestamp before acquiring the lock to avoid deadlocks 
     // strictly with multi-threaded/blocking time providers.

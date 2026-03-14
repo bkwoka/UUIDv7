@@ -63,8 +63,12 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
    */
 
   // 1. Initial platform-provided randomness
-  for (size_t i = 0; i < len; i++) {
-    dest[i] = (uint8_t)random(256);
+  {
+    // Protect Arduino's non-reentrant random() from concurrent RTOS tasks
+    UUID7Guard lock(nullptr, nullptr);
+    for (size_t i = 0; i < len; i++) {
+      dest[i] = (uint8_t)random(256);
+    }
   }
 
   // 2. Hardware-Unique Identification (UID Mix)
