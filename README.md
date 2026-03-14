@@ -244,7 +244,7 @@ int main() {
 *   `uint64_t getTimestamp() const`: Extract the 48-bit timestamp (returns 0 if not v7).
 
 ### Relational Operators
-*   `==`, `!=`, `<`, `>`, `<=`, `>=`: Fully supported for K-Sortable database indexing.
+*   `==`, `!=`, `<`, `>`, `<=`, `>=`: Fully supported for K-Sortable database indexing (uses highly optimized 128-bit `memcmp` under the hood).
 
 ---
 

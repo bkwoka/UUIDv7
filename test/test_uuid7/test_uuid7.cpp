@@ -7,6 +7,7 @@
     #define TEST_ASSERT_EQUAL_UINT8(expected, actual) assert((expected) == (actual))
     #define TEST_ASSERT_EQUAL_MEMORY(expected, actual, len) assert(memcmp(expected, actual, len) == 0)
     #define TEST_ASSERT_EQUAL_STRING(expected, actual) assert(strcmp(expected, actual) == 0)
+    #define TEST_ASSERT_EQUAL_INT(expected, actual) assert((expected) == (actual))
     #define RUN_TEST(func) do { printf("Running %s...", #func); func(); printf(" OK\n"); } while(0)
     #define UNITY_BEGIN() printf("Starting Standalone Tests...\n")
     #define UNITY_END() printf("All tests passed!\n")

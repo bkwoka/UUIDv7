@@ -107,15 +107,24 @@ bool UUID7::generate() {
   fill_random_fn rng = _rng ? _rng : &UUID7::default_fill_random;
 
   if (_version == UUID_VERSION_4) {
-    rng(_b, sizeof(_b), _rng_ctx);
+    uint8_t temp_rand[16];
+    rng(temp_rand, sizeof(temp_rand), _rng_ctx);
     uint8_t sum = 0;
-    for (size_t i = 0; i < sizeof(_b); i++)
-      sum |= _b[i];
+    for (size_t i = 0; i < sizeof(temp_rand); i++)
+      sum |= temp_rand[i];
     if (sum == 0)
       return false;
 
-    _b[6] = (_b[6] & 0x0F) | 0x40; // Set UUID version to 4 (Random)
-    _b[8] = (_b[8] & 0x3F) | 0x80; // Set variant to RFC 4122 (10b)
+    // Unconditionally mix entropy (XOR with 0 is a no-op, avoids branching)
+    for (int i = 0; i < 8; i++) {
+      temp_rand[8 + i] ^= (uint8_t)(_entropy_mixer >> (i * 8));
+    }
+
+    temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // Set UUID version to 4 (Random)
+    temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // Set variant to RFC 4122 (10b)
+
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    memcpy(_b, temp_rand, 16);
     return true;
   }
 
@@ -147,10 +156,9 @@ bool UUID7::generate() {
       // Enforce exclusivity with RAII guard
       UUID7Guard lock(_lock_cb, _unlock_cb);
 
-      if (_entropy_mixer != 0) {
-        for (int i = 0; i < 8; i++) {
-          temp_rand[8 + i] ^= (uint8_t)(_entropy_mixer >> (i * 8));
-        }
+      // Unconditionally mix entropy (XOR with 0 is a no-op, avoids branching)
+      for (int i = 0; i < 8; i++) {
+        temp_rand[8 + i] ^= (uint8_t)(_entropy_mixer >> (i * 8));
       }
 
       int cmp = _tsState.compare(now_ms);
