@@ -4,6 +4,7 @@
 
 #include "UUID7.h"
 #include "UUID7Prng.h"
+#include "UUID7Guard.h"
 #include <string.h>
 
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
