@@ -55,8 +55,10 @@ jobs:
         run: |
           lcov --directory .pio/build/test --capture --output-file coverage_main.info
           lcov --directory .pio/build/test_avr_compat --capture --output-file coverage_avr.info
+          lcov --directory .pio/build/test_easy --capture --output-file coverage_easy.info
           lcov --add-tracefile coverage_main.info \
                --add-tracefile coverage_avr.info \
+               --add-tracefile coverage_easy.info \
                --output-file coverage.info
           lcov --remove coverage.info '*/.pio/*' '*/test/*' '/usr/*' --output-file coverage.info
           lcov --list coverage.info
