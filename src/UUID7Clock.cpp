@@ -46,6 +46,7 @@ uint64_t UUID7::default_now_ms(void *ctx) noexcept {
 
   return result;
 #else
+  #warning "UUID7: No clock source detected for this platform. Inject a time provider via setTimeProvider() or generate() will always return false."
   return 0;
 #endif
 }

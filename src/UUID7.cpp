@@ -109,11 +109,14 @@ bool UUID7::generate() {
   if (_version == UUID_VERSION_4) {
     uint8_t temp_rand[16];
     rng(temp_rand, sizeof(temp_rand), _rng_ctx);
-    uint8_t sum = 0;
-    for (size_t i = 0; i < sizeof(temp_rand); i++)
-      sum |= temp_rand[i];
-    if (sum == 0)
-      return false;
+    uint8_t sum_or = 0;
+    uint8_t sum_and = 0xFF;
+    for (size_t i = 0; i < sizeof(temp_rand); i++) {
+      sum_or |= temp_rand[i];
+      sum_and &= temp_rand[i];
+    }
+    if (sum_or == 0 || sum_and == 0xFF)
+      return false; // Fail-fast for hardware faults (all 0x00 or all 0xFF)
 
     // Unconditionally mix entropy (XOR with 0 is a no-op, avoids branching)
     for (int i = 0; i < 8; i++) {
@@ -135,11 +138,14 @@ bool UUID7::generate() {
     uint8_t temp_rand[16];
     rng(temp_rand, sizeof(temp_rand), _rng_ctx);
 
-    uint8_t sum = 0;
-    for (size_t i = 0; i < sizeof(temp_rand); i++)
-      sum |= temp_rand[i];
-    if (sum == 0)
-      return false;
+    uint8_t sum_or = 0;
+    uint8_t sum_and = 0xFF;
+    for (size_t i = 0; i < sizeof(temp_rand); i++) {
+      sum_or |= temp_rand[i];
+      sum_and &= temp_rand[i];
+    }
+    if (sum_or == 0 || sum_and == 0xFF)
+      return false; // Fail-fast for hardware faults (all 0x00 or all 0xFF)
 
     // Retrieve current timestamp before acquiring the lock to avoid deadlocks 
     // strictly with multi-threaded/blocking time providers.
@@ -175,7 +181,9 @@ bool UUID7::generate() {
       }
 
       if (major_regression) {
-        // Major regression detected: initiate RFC9562 fallback (UUIDv4) to guarantee collision resistance
+        // Major regression detected: initiate RFC9562 fallback (UUIDv4) to guarantee collision resistance.
+        // We intentionally do NOT update _persistence here, as the saved timestamp
+        // is still the correct high-water mark.
         temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // v4 bits
         temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // variant bits
         memcpy(_b, temp_rand, 16);
@@ -261,16 +269,63 @@ bool UUID7::parseFromString(const char *str, uint8_t out[16]) noexcept {
 }
 
 uint64_t UUID7::getTimestamp() const noexcept {
-  if (!isV7())
-    return 0;
-  uint64_t ts = 0;
-  uint8_t snap[6];
+  uint8_t snap[16];
   {
     UUID7Guard lock(_lock_cb, _unlock_cb);
-    memcpy(snap, _b, 6);
+    memcpy(snap, _b, 16);
   }
+  if (((snap[6] >> 4) & 0x0F) != 7)
+    return 0;
+    
+  uint64_t ts = 0;
   for (int i = 0; i < 6; i++) {
     ts = (ts << 8) | snap[i];
   }
   return ts;
+}
+
+bool UUID7::isV7() const noexcept {
+  uint8_t b6;
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    b6 = _b[6];
+  }
+  return ((b6 >> 4) & 0x0F) == 7;
+}
+
+bool UUID7::isV4() const noexcept {
+  uint8_t b6;
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    b6 = _b[6];
+  }
+  return ((b6 >> 4) & 0x0F) == 4;
+}
+
+uint8_t UUID7::getVariant() const noexcept {
+  uint8_t b8;
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    b8 = _b[8];
+  }
+  return (b8 >> 6) & 0x03;
+}
+
+void UUID7::mixEntropy(uint64_t seed) noexcept {
+  UUID7Guard lock(_lock_cb, _unlock_cb);
+  _entropy_mixer = seed;
+}
+
+void UUID7::fromBytes(const uint8_t bytes[16]) noexcept {
+  UUID7Guard lock(_lock_cb, _unlock_cb);
+  memcpy(_b, bytes, 16);
+}
+
+bool UUID7::parse(const char *str36) noexcept {
+  uint8_t temp[16];
+  if (parseFromString(str36, temp)) {
+    fromBytes(temp);
+    return true;
+  }
+  return false;
 }

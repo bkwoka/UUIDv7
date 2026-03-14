@@ -169,6 +169,7 @@ static uint64_t mock_now_ms_overflow(void*) {
 
 static void overflow_rng(uint8_t* dest, size_t len, void*) {
     memset(dest, 0xFF, len);
+    if (len > 0) dest[0] = 0xFE; // Avoid hardware fault detection (all 0xFF)
 }
 
 void test_overflow_policy() {
@@ -732,6 +733,40 @@ void test_lock_callbacks() {
     TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
 }
 
+void test_getter_lock_callbacks() {
+    s_lock_count = s_unlock_count = 0;
+    mock_time_val = 12345;
+
+    UUID7 g(nullptr, nullptr, mock_now_ms, nullptr);
+    g.setLockCallbacks(counting_lock, counting_unlock);
+    g.generate();
+
+    int before = s_lock_count;
+
+    // Each getter must invoke lock/unlock exactly once
+    (void)g.isV7();
+    TEST_ASSERT_EQUAL_INT(before + 1, s_lock_count);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+
+    (void)g.isV4();
+    TEST_ASSERT_EQUAL_INT(before + 2, s_lock_count);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+
+    (void)g.getVariant();
+    TEST_ASSERT_EQUAL_INT(before + 3, s_lock_count);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+
+    (void)g.getTimestamp();
+    TEST_ASSERT_EQUAL_INT(before + 4, s_lock_count);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+
+    // isValid() invokes isV7() OR isV4() — at least +1 lock
+    int before2 = s_lock_count;
+    (void)g.isValid();
+    TEST_ASSERT_TRUE(s_lock_count > before2);
+    TEST_ASSERT_EQUAL_INT(s_lock_count, s_unlock_count);
+}
+
 // --- TEST RUNNER ---
 
 void run_tests() {
@@ -774,6 +809,7 @@ void run_tests() {
     RUN_TEST(test_get_timestamp);
     RUN_TEST(test_is_valid);
     RUN_TEST(test_lock_callbacks);
+    RUN_TEST(test_getter_lock_callbacks);
 
     UNITY_END();
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.2] - 2026-03-14
+
+### Fixed
+- **Concurrency**: Fixed TOCTOU (Time-of-Check to Time-of-Use) data race in `getTimestamp()` by taking a full buffer snapshot under lock.
+- **Concurrency**: Fixed data races in `isV7()`, `isV4()`, and `getVariant()` by moving their implementations to `.cpp` and protecting reads with `UUID7Guard`.
+- **Concurrency**: Fixed torn reads/writes in `parse()`, `fromBytes()`, and `mixEntropy()` by moving implementations to `.cpp` and protecting them with `UUID7Guard`.
+- **Concurrency**: Fixed a race condition in the AVR PRNG fallback when `generate()` is called simultaneously from the main loop and an ISR.
+- **Concurrency**: Added thread-safety lock around Arduino `random()` calls on STM32 to prevent data races in FreeRTOS environments.
+- **Robustness**: Added hardware fault detection (all 0xFF) to the RNG fail-fast mechanism to prevent infinite loops and Watchdog resets.
+- **Examples**: Fixed a logical flaw in `2_Robust_Persistence.ino` where using `millis()` directly with EEPROM state caused a permanent fallback to UUIDv4 after reboot.
+- **Docs**: Added explicit warnings about EEPROM wear when setting `interval_ms=0` in `setStorage()`.
+- **Docs**: Added thread-safety warnings for relational operators (`==`, `<`, etc.).
+- **Platform**: Added compiler warning for unsupported platforms missing a default clock source.
+
 ## [1.3.1] - 2026-03-14
 
 ### Fixed

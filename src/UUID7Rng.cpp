@@ -4,6 +4,7 @@
 
 #include "UUID7.h"
 #include "UUID7Prng.h"
+#include "UUID7Guard.h"
 #include <string.h>
 
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
@@ -63,8 +64,12 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
    */
 
   // 1. Initial platform-provided randomness
-  for (size_t i = 0; i < len; i++) {
-    dest[i] = (uint8_t)random(256);
+  {
+    // Protect Arduino's non-reentrant random() from concurrent RTOS tasks
+    UUID7Guard lock(nullptr, nullptr);
+    for (size_t i = 0; i < len; i++) {
+      dest[i] = (uint8_t)random(256);
+    }
   }
 
   // 2. Hardware-Unique Identification (UID Mix)
@@ -133,8 +138,14 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
 
   size_t i = 0;
   while (i < len) {
+    uint32_t r;
+    // Protect PRNG state from concurrent ISR access on 8-bit AVR
+    uint8_t oldSREG = SREG;
+    cli();
     rng_state ^= (uint32_t)micros();
-    uint32_t r = uuid_xorshift32(&rng_state);
+    r = uuid_xorshift32(&rng_state);
+    SREG = oldSREG;
+
     for (int b = 0; b < 4 && i < len; b++) {
       dest[i++] = (uint8_t)(r & 0xFF);
       r >>= 8;

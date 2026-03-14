@@ -45,6 +45,11 @@ uint32_t calcCRC32(const uint8_t *data, size_t len) {
 }
 
 // --- ADAPTER IMPLEMENTATION ---
+uint64_t g_base_time = 0;
+
+uint64_t my_time_provider(void* ctx) {
+    return g_base_time + millis();
+}
 
 uint64_t load_from_eeprom(void* ctx) {
     StorageSlot sA, sB;
@@ -98,11 +103,17 @@ void setup() {
         EEPROM.begin(512);
     #endif
 
-    // Dependency Injection: Plug in the storage mechanism
+    // 1. Load the last known time from EEPROM to use as a base offset
+    g_base_time = load_from_eeprom(nullptr);
+
+    // 2. Inject time provider that adds millis() to the base time
+    uuid.setTimeProvider(my_time_provider);
+
+    // 3. Plug in the storage mechanism
     uuid.setStorage(load_from_eeprom, save_to_eeprom, nullptr, SAVE_INTERVAL_MS);
     
-    // CRITICAL: Load state before generating!
-    // This performs the "Safety Jump" (sets internal clock ahead of last saved time)
+    // 4. CRITICAL: Load state before generating!
+    // This performs the "Safety Jump" (adds interval to the loaded time)
     uuid.load(); 
     
     Serial.println("UUIDv7 Initialized with Persistence.");
