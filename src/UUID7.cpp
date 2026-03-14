@@ -175,7 +175,9 @@ bool UUID7::generate() {
       }
 
       if (major_regression) {
-        // Major regression detected: initiate RFC9562 fallback (UUIDv4) to guarantee collision resistance
+        // Major regression detected: initiate RFC9562 fallback (UUIDv4) to guarantee collision resistance.
+        // We intentionally do NOT update _persistence here, as the saved timestamp
+        // is still the correct high-water mark.
         temp_rand[6] = (temp_rand[6] & 0x0F) | 0x40; // v4 bits
         temp_rand[8] = (temp_rand[8] & 0x3F) | 0x80; // variant bits
         memcpy(_b, temp_rand, 16);
@@ -261,16 +263,44 @@ bool UUID7::parseFromString(const char *str, uint8_t out[16]) noexcept {
 }
 
 uint64_t UUID7::getTimestamp() const noexcept {
-  if (!isV7())
-    return 0;
-  uint64_t ts = 0;
-  uint8_t snap[6];
+  uint8_t snap[16];
   {
     UUID7Guard lock(_lock_cb, _unlock_cb);
-    memcpy(snap, _b, 6);
+    memcpy(snap, _b, 16);
   }
+  if (((snap[6] >> 4) & 0x0F) != 7)
+    return 0;
+    
+  uint64_t ts = 0;
   for (int i = 0; i < 6; i++) {
     ts = (ts << 8) | snap[i];
   }
   return ts;
+}
+
+bool UUID7::isV7() const noexcept {
+  uint8_t b6;
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    b6 = _b[6];
+  }
+  return ((b6 >> 4) & 0x0F) == 7;
+}
+
+bool UUID7::isV4() const noexcept {
+  uint8_t b6;
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    b6 = _b[6];
+  }
+  return ((b6 >> 4) & 0x0F) == 4;
+}
+
+uint8_t UUID7::getVariant() const noexcept {
+  uint8_t b8;
+  {
+    UUID7Guard lock(_lock_cb, _unlock_cb);
+    b8 = _b[8];
+  }
+  return (b8 >> 6) & 0x03;
 }

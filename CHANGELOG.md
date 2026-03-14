@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.2] - 2026-03-14
+
+### Fixed
+- **Concurrency**: Fixed TOCTOU (Time-of-Check to Time-of-Use) data race in `getTimestamp()` by taking a full buffer snapshot under lock.
+- **Concurrency**: Fixed data races in `isV7()`, `isV4()`, and `getVariant()` by moving their implementations to `.cpp` and protecting reads with `UUID7Guard`.
+- **Docs**: Added explicit warnings about EEPROM wear when setting `interval_ms=0` in `setStorage()`.
+- **Docs**: Added thread-safety warnings for relational operators (`==`, `<`, etc.).
+- **Platform**: Added compiler warning for unsupported platforms missing a default clock source.
+
 ## [1.3.1] - 2026-03-14
 
 ### Fixed

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#define UUID7_LIB_VERSION "1.3.1"
+#define UUID7_LIB_VERSION "1.3.2"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -153,13 +153,13 @@ public:
    * @brief Get the variant of the generated UUID.
    * @return Variant bits shifted to right (should be 2 for RFC 4122).
    */
-  uint8_t getVariant() const noexcept { return (_b[8] >> 6) & 0x03; }
+  uint8_t getVariant() const noexcept;
 
   /** @brief Check if the currently generated UUID is Version 7. */
-  bool isV7() const noexcept { return ((_b[6] >> 4) & 0x0F) == 7; }
+  bool isV7() const noexcept;
 
   /** @brief Check if the currently generated UUID is Version 4. */
-  bool isV4() const noexcept { return ((_b[6] >> 4) & 0x0F) == 4; }
+  bool isV4() const noexcept;
 
   /**
    * @brief Check if the object contains a valid, generated UUID.
@@ -206,8 +206,10 @@ public:
    * @param load_fn Function to read uint64_t timestamp from NVS/EEPROM.
    * @param save_fn Function to write uint64_t timestamp to NVS/EEPROM.
    * @param ctx Context for callbacks.
-   * @param auto_save_interval_ms How often to write state (Wear Leveling).
-   * Default 10000ms.
+   * @param auto_save_interval_ms Minimum write interval in ms (wear leveling).
+   *        WARNING: Passing 0 will write on every generate() call, which can
+   *        rapidly exhaust EEPROM/Flash endurance. Use 0 only for FRAM/SRAM.
+   *        Default 10000ms.
    */
   void setStorage(uuid_load_fn load_fn, uuid_save_fn save_fn, void *ctx,
                   uint32_t auto_save_interval_ms = 10000);
@@ -281,7 +283,12 @@ public:
   }
 #endif
 
-  /** @brief Check if two UUIDs are identical. */
+  /** 
+   * @brief Check if two UUIDs are identical. 
+   * @warning Relational operators read internal buffers without acquiring a lock.
+   * Comparing UUID7 objects shared across threads without external synchronization
+   * is undefined behavior. Use toString() for thread-safe comparisons.
+   */
   bool operator==(const UUID7 &other) const {
     return memcmp(_b, other._b, 16) == 0;
   }
