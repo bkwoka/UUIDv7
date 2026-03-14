@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.1] - 2026-03-14
+
+### Fixed
+- **Concurrency**: Resolved a potential data race in UUID v4 generation by using a temporary buffer and copying under lock.
+- **Concurrency**: Secured the static clock accumulator in `default_now_ms()` with `UUID7Guard`, preventing torn reads and race conditions on multi-core (RP2040) and RTOS (STM32 FreeRTOS) platforms.
+- **Robustness**: Secured AVR PRNG stack entropy from LTO (Link Time Optimization) deletion using `volatile` qualifier.
+- **Docs**: Corrected thread safety information for `EasyUUID7::data()` and `EasyUUID7::toCharArray()`.
+- **Docs**: Updated relational operators description to highlight optimized 128-bit `memcmp` implementation.
+
+### Changed
+- **Performance**: Optimized entropy mixing by removing conditional branches (now unconditional XOR), improving deterministic execution time.
+- **Entropy**: Added entropy mixing support to UUID v4 generation for improved collision resistance across fleets.
+
 ## [1.3.0] - 2026-03-13
 
 ### Changed (Under-the-hood)

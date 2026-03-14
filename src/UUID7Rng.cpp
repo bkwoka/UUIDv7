@@ -96,7 +96,7 @@ void UUID7::default_fill_random(uint8_t *dest, size_t len, void *ctx) noexcept {
 
   if (rng_state == 0) {
     uint32_t entropy = 0;
-    uint8_t stack_var;
+    volatile uint8_t stack_var;
     entropy ^= uuid_mix32((uint16_t)(uintptr_t)&stack_var);
     entropy ^= uuid_mix32((uint32_t)((uintptr_t)default_fill_random));
     entropy ^= uuid_mix32(micros());

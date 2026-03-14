@@ -3,6 +3,7 @@
 // Repository: https://github.com/bkwoka/UUIDv7
 
 #include "UUID7.h"
+#include "UUID7Guard.h"
 
 #if defined(PLATFORMIO_ESP32) || defined(ARDUINO_ARCH_ESP32)
 #include "esp_timer.h"
@@ -26,25 +27,24 @@ uint64_t UUID7::default_now_ms(void *ctx) noexcept {
   // Standard millis() returns a uint32_t which overflows after
   // approximately 49.7 days. A static accumulator is used to extend the value
   // to 64 bits.
-  //
-  // NOTE: These static variables are accessed outside the spinlock.
-  // On single-core platforms (AVR, ESP8266, STM32) this is safe.
-  // On RP2040 dual-core, a concurrent read/write of the 64-bit s_epoch_offset
-  // can result in a "torn read" (as Cortex-M0+ lacks 64-bit atomic instructions),
-  // or a double increment during wraparound. The result
-  // is a ~99-day forward jump, which triggers clock-regression fallback
-  // (UUIDv4 for that call). Probability is negligible in practice.
   static uint32_t s_prev_ms = 0;
   static uint64_t s_epoch_offset = 0;
 
   uint32_t now = millis();
-  if (now < s_prev_ms) {
-    // Increment epoch offset by 2^32 milliseconds
-    s_epoch_offset += 0x100000000ULL;
+  uint64_t result;
+  {
+    // Protect static accumulator from concurrent access on multi-core (RP2040)
+    // or preemptive RTOS environments (STM32 FreeRTOS).
+    UUID7Guard lock(nullptr, nullptr);
+    if (now < s_prev_ms) {
+      // Increment epoch offset by 2^32 milliseconds
+      s_epoch_offset += 0x100000000ULL;
+    }
+    s_prev_ms = now;
+    result = s_epoch_offset + now;
   }
-  s_prev_ms = now;
 
-  return s_epoch_offset + now;
+  return result;
 #else
   return 0;
 #endif
