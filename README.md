@@ -278,9 +278,10 @@ Include with `#include "EasyUUID7.h"`.
 *   `operator const char*()`: Allows `const char* s = uuid;` (non-const, triggers lazy init).
 *   `Serial.println(uuid)`: Via inherited `Printable` interface.
 
-> **Note:** `data()` is inherited from `UUID7` but is **not thread-safe**. In multi-threaded
-> environments (ESP32/RP2040) use `toString()` or `toCharArray()` instead, as they acquire
-> the spinlock internally.
+> **Note:** When sharing a single instance across threads (ESP32/RP2040), `data()` and 
+> `toCharArray()` are **not thread-safe** as they return pointers to internal buffers that 
+> may be overwritten concurrently. Use `toString()` instead, which safely copies the data 
+> under an internal spinlock.
 
 ## License
 
