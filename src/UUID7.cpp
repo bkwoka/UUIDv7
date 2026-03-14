@@ -304,3 +304,22 @@ uint8_t UUID7::getVariant() const noexcept {
   }
   return (b8 >> 6) & 0x03;
 }
+
+void UUID7::mixEntropy(uint64_t seed) noexcept {
+  UUID7Guard lock(_lock_cb, _unlock_cb);
+  _entropy_mixer = seed;
+}
+
+void UUID7::fromBytes(const uint8_t bytes[16]) noexcept {
+  UUID7Guard lock(_lock_cb, _unlock_cb);
+  memcpy(_b, bytes, 16);
+}
+
+bool UUID7::parse(const char *str36) noexcept {
+  uint8_t temp[16];
+  if (parseFromString(str36, temp)) {
+    fromBytes(temp);
+    return true;
+  }
+  return false;
+}

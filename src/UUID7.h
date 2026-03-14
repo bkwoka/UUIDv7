@@ -137,7 +137,7 @@ public:
    * timestamps collide.
    * @param seed 64-bit entropy seed.
    */
-  void mixEntropy(uint64_t seed) noexcept { _entropy_mixer = seed; }
+  void mixEntropy(uint64_t seed) noexcept;
 
   /**
    * @brief Get current configured UUID version.
@@ -168,6 +168,8 @@ public:
    *       for an all-zero buffer, and for UUIDs of other versions (v1, v3, v5)
    *       loaded via fromBytes() or parseFromString(), as this library only
    *       generates and recognises v4 and v7.
+   * @warning This is a convenience method that calls isV7() and isV4() sequentially.
+   *          In multi-threaded environments, it performs up to two independent lock cycles.
    */
   bool isValid() const noexcept { return isV7() || isV4(); }
 
@@ -183,7 +185,7 @@ public:
    * @param str36 Source string (36 or 32 chars).
    * @return true if string is valid and parsed, false otherwise.
    */
-  bool parse(const char *str36) noexcept { return parseFromString(str36, _b); }
+  bool parse(const char *str36) noexcept;
 
   /**
    * @brief Configure behavior when sub-millisecond counter overflows.
@@ -239,7 +241,7 @@ public:
    * @brief Import 16 raw bytes into the UUID object.
    * @param bytes Source 16-byte array.
    */
-  void fromBytes(const uint8_t bytes[16]) noexcept { memcpy(_b, bytes, 16); }
+  void fromBytes(const uint8_t bytes[16]) noexcept;
 
   /**
    * @brief Format UUID as standard string.
